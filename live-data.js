@@ -382,23 +382,23 @@ function initLiveData() {
     // Lade Daten basierend auf der aktuellen Seite
     if (currentPage.includes('krypto')) {
         updateCryptoData();
-        // Aktualisiere alle 60 Sekunden
-        setInterval(updateCryptoData, 60000);
+        // Aktualisiere alle 5 Sekunden
+        setInterval(updateCryptoData, 5000);
     } 
     else if (currentPage.includes('assets')) {
         updateStockData();
-        // Aktualisiere alle 60 Sekunden
-        setInterval(updateStockData, 60000);
+        // Aktualisiere alle 5 Sekunden
+        setInterval(updateStockData, 5000);
     } 
     else if (currentPage.includes('indices')) {
         updateIndicesData();
-        // Aktualisiere alle 60 Sekunden
-        setInterval(updateIndicesData, 60000);
+        // Aktualisiere alle 5 Sekunden
+        setInterval(updateIndicesData, 5000);
     } 
     else if (currentPage.includes('futures')) {
         updateCommoditiesData();
-        // Aktualisiere alle 60 Sekunden
-        setInterval(updateCommoditiesData, 60000);
+        // Aktualisiere alle 5 Sekunden
+        setInterval(updateCommoditiesData, 5000);
     }
     else if (currentPage === 'index' || currentPage === '') {
         // Auf der Startseite alle Daten laden (wenn dort Previews sind)
