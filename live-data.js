@@ -10,41 +10,8 @@ const CORS_PROXIES = [
 
 let currentProxyIndex = 0;
 
-// Cache für letzte gültige Preise
-const lastValidPrices = new Map();
-
 function getCorsProxy() {
     return CORS_PROXIES[currentProxyIndex];
-}
-
-// Validiere ob Preisänderung realistisch ist
-// Nutzt previousClose als Referenz falls verfügbar
-function isValidPriceChange(symbol, newPrice, previousClose = null, maxChangePercent = 10) {
-    if (!newPrice || isNaN(newPrice) || newPrice <= 0) {
-        return false;
-    }
-    
-    // Nutze previousClose als primäre Referenz wenn verfügbar
-    let referencePrice = previousClose;
-    
-    // Falls kein previousClose, nutze gespeicherten Preis
-    if (!referencePrice) {
-        referencePrice = lastValidPrices.get(symbol);
-    }
-    
-    // Wenn wir eine Referenz haben, validiere gegen diese
-    if (referencePrice && referencePrice > 0) {
-        const changePercent = Math.abs((newPrice - referencePrice) / referencePrice * 100);
-        
-        if (changePercent > maxChangePercent) {
-            console.warn(`⚠️ Unrealistische Preisänderung für ${symbol}: ${referencePrice.toFixed(2)} → ${newPrice.toFixed(2)} (${changePercent.toFixed(1)}%)`);
-            return false;
-        }
-    }
-    
-    // Preis ist gültig - speichere ihn
-    lastValidPrices.set(symbol, newPrice);
-    return true;
 }
 
 // Utility Funktionen
@@ -129,12 +96,6 @@ async function updateCryptoData() {
             if (cryptoId && data[cryptoId]) {
                 const crypto = data[cryptoId];
                 
-                // Validierung mit realistischer Preisänderung (max 20% für volatile Kryptos)
-                if (!isValidPriceChange(cryptoId, crypto.usd, 20)) {
-                    console.warn(`⚠️ Unrealistischer Preis für ${ticker}, überspringe Update`);
-                    return;
-                }
-                
                 console.log(`Aktualisiere ${ticker}:`, crypto);
                 
                 // Update Preis
@@ -197,13 +158,6 @@ async function updateStockData() {
                     if (result && result.meta) {
                         const currentPrice = result.meta.regularMarketPrice;
                         const previousClose = result.meta.chartPreviousClose || result.meta.previousClose;
-                        
-                        // Validierung mit previousClose als Referenz (max 15% Änderung)
-                        if (!isValidPriceChange(ticker, currentPrice, previousClose, 15)) {
-                            console.warn(`⚠️ Unrealistischer Preis für ${ticker}, überspringe Update`);
-                            continue;
-                        }
-                        
                         const change = ((currentPrice - previousClose) / previousClose) * 100;
                         
                         console.log(`${ticker}: $${currentPrice.toFixed(2)} (${change.toFixed(2)}%)`);
@@ -281,13 +235,6 @@ async function updateIndicesData() {
                     if (result && result.meta) {
                         const currentPrice = result.meta.regularMarketPrice;
                         const previousClose = result.meta.chartPreviousClose || result.meta.previousClose;
-                        
-                        // Validierung mit previousClose als Referenz (max 10% Änderung)
-                        if (!isValidPriceChange(symbol, currentPrice, previousClose, 10)) {
-                            console.warn(`⚠️ Ungültiger oder unrealistischer Preis für ${name}, überspringe Update`);
-                            continue;
-                        }
-                        
                         const change = ((currentPrice - previousClose) / previousClose) * 100;
                         const high = result.meta.regularMarketDayHigh;
                         const low = result.meta.regularMarketDayLow;
@@ -380,12 +327,6 @@ async function updateCommoditiesData() {
                         const high = result.meta.regularMarketDayHigh;
                         const low = result.meta.regularMarketDayLow;
                         
-                        // Validiere Preis mit previousClose als Referenz (max 15% Änderung)
-                        if (!isValidPriceChange(symbol, currentPrice, previousClose, 15)) {
-                            console.warn(`⚠️ Unrealistische Preisänderung für ${name} ignoriert`);
-                            continue;
-                        }
-                        
                         console.log(`${name}: $${currentPrice.toFixed(2)} (${change.toFixed(2)}%)`);
                         
                         // Finde die entsprechende Futures-Card
@@ -444,23 +385,23 @@ function initLiveData() {
     // Lade Daten basierend auf der aktuellen Seite
     if (currentPage.includes('krypto')) {
         updateCryptoData();
-        // Aktualisiere alle 15 Sekunden
-        setInterval(updateCryptoData, 15000);
+        // Aktualisiere alle 60 Sekunden
+        setInterval(updateCryptoData, 60000);
     } 
     else if (currentPage.includes('assets')) {
         updateStockData();
-        // Aktualisiere alle 15 Sekunden
-        setInterval(updateStockData, 15000);
+        // Aktualisiere alle 60 Sekunden
+        setInterval(updateStockData, 60000);
     } 
     else if (currentPage.includes('indices')) {
         updateIndicesData();
-        // Aktualisiere alle 15 Sekunden
-        setInterval(updateIndicesData, 15000);
+        // Aktualisiere alle 60 Sekunden
+        setInterval(updateIndicesData, 60000);
     } 
     else if (currentPage.includes('futures')) {
         updateCommoditiesData();
-        // Aktualisiere alle 15 Sekunden
-        setInterval(updateCommoditiesData, 15000);
+        // Aktualisiere alle 60 Sekunden
+        setInterval(updateCommoditiesData, 60000);
     }
     else if (currentPage === 'index' || currentPage === '') {
         // Auf der Startseite alle Daten laden (wenn dort Previews sind)
