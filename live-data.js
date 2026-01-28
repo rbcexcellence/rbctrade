@@ -13,6 +13,29 @@ let currentProxyIndex = 0;
 // Cache für letzte gültige Preise
 const lastValidPrices = new Map();
 
+// Absolute Mindest-/Höchstwerte für verschiedene Asset-Klassen
+const PRICE_RANGES = {
+    // Indices (sollten im Tausender-Bereich sein)
+    '^GSPC': { min: 3000, max: 10000 },  // S&P 500
+    '^IXIC': { min: 10000, max: 30000 }, // Nasdaq
+    '^DJI': { min: 25000, max: 60000 },  // Dow Jones
+    
+    // Aktien (typische Ranges)
+    'AAPL': { min: 50, max: 300 },
+    'MSFT': { min: 100, max: 500 },
+    'GOOGL': { min: 50, max: 200 },
+    'AMZN': { min: 50, max: 250 },
+    'NVDA': { min: 50, max: 200 },
+    'TSLA': { min: 50, max: 500 },
+    'META': { min: 100, max: 700 },
+    
+    // Rohstoffe
+    'GC=F': { min: 1000, max: 3000 },    // Gold
+    'SI=F': { min: 15, max: 50 },        // Silber
+    'CL=F': { min: 30, max: 150 },       // Oil
+    'BZ=F': { min: 30, max: 150 }        // Brent
+};
+
 function getCorsProxy() {
     return CORS_PROXIES[currentProxyIndex];
 }
@@ -23,9 +46,18 @@ function isValidPriceChange(symbol, newPrice, maxChangePercent = 10) {
         return false;
     }
     
+    // Prüfe absolute Ranges falls definiert
+    const range = PRICE_RANGES[symbol];
+    if (range) {
+        if (newPrice < range.min || newPrice > range.max) {
+            console.warn(`⚠️ Preis außerhalb realistischer Range für ${symbol}: ${newPrice.toFixed(2)} (erlaubt: ${range.min}-${range.max})`);
+            return false;
+        }
+    }
+    
     const lastPrice = lastValidPrices.get(symbol);
     if (!lastPrice) {
-        // Erster Preis - akzeptiere ihn und speichere
+        // Erster Preis - speichere ihn nur wenn er realistisch ist
         lastValidPrices.set(symbol, newPrice);
         return true;
     }
