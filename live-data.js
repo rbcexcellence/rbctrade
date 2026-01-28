@@ -234,6 +234,13 @@ async function updateIndicesData() {
                     if (result && result.meta) {
                         const currentPrice = result.meta.regularMarketPrice;
                         const previousClose = result.meta.chartPreviousClose || result.meta.previousClose;
+                        
+                        // Validierung: Preis muss eine gültige Zahl und > 0 sein
+                        if (!currentPrice || isNaN(currentPrice) || currentPrice <= 0) {
+                            console.warn(`⚠️ Ungültiger Preis für ${name}: ${currentPrice}`);
+                            return;
+                        }
+                        
                         const change = ((currentPrice - previousClose) / previousClose) * 100;
                         const high = result.meta.regularMarketDayHigh;
                         const low = result.meta.regularMarketDayLow;
@@ -262,12 +269,14 @@ async function updateIndicesData() {
                                     // Update High/Low
                                     const detailValues = card.querySelectorAll('.detail-value');
                                     if (detailValues.length >= 2) {
-                                        if (high) detailValues[0].textContent = formatPrice(high, 2);
-                                        if (low) detailValues[1].textContent = formatPrice(low, 2);
+                                        if (high && high > 0) detailValues[0].textContent = formatPrice(high, 2);
+                                        if (low && low > 0) detailValues[1].textContent = formatPrice(low, 2);
                                     }
                                 }
                             }
                         });
+                    } else {
+                        console.warn(`⚠️ Keine Daten für ${name}`);
                     }
                 }
                 
@@ -382,23 +391,23 @@ function initLiveData() {
     // Lade Daten basierend auf der aktuellen Seite
     if (currentPage.includes('krypto')) {
         updateCryptoData();
-        // Aktualisiere alle 5 Sekunden
-        setInterval(updateCryptoData, 5000);
+        // Aktualisiere alle 15 Sekunden
+        setInterval(updateCryptoData, 15000);
     } 
     else if (currentPage.includes('assets')) {
         updateStockData();
-        // Aktualisiere alle 5 Sekunden
-        setInterval(updateStockData, 5000);
+        // Aktualisiere alle 15 Sekunden
+        setInterval(updateStockData, 15000);
     } 
     else if (currentPage.includes('indices')) {
         updateIndicesData();
-        // Aktualisiere alle 5 Sekunden
-        setInterval(updateIndicesData, 5000);
+        // Aktualisiere alle 15 Sekunden
+        setInterval(updateIndicesData, 15000);
     } 
     else if (currentPage.includes('futures')) {
         updateCommoditiesData();
-        // Aktualisiere alle 5 Sekunden
-        setInterval(updateCommoditiesData, 5000);
+        // Aktualisiere alle 15 Sekunden
+        setInterval(updateCommoditiesData, 15000);
     }
     else if (currentPage === 'index' || currentPage === '') {
         // Auf der Startseite alle Daten laden (wenn dort Previews sind)
