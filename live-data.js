@@ -200,12 +200,15 @@ async function updateStockData() {
 // ==================== INDICES DATEN ====================
 async function updateIndicesData() {
     const indices = {
-        '^GSPC': 'S&P 500',      // S&P 500
-        '^IXIC': 'US 100',       // Nasdaq
-        '^DJI': 'Dow Jones',     // Dow Jones
-        '^GDAXI': 'DAX',         // DAX
-        '^FTSE': 'FTSE 100',     // FTSE 100
-        '^N225': 'Nikkei 225'    // Nikkei
+        '^GSPC': 'S&P 500',
+        '^IXIC': 'US 100',
+        '^DJI': 'Dow Jones',
+        '^GDAXI': 'DAX',
+        '^FTSE': 'FTSE 100',
+        '^N225': 'Nikkei 225',
+        '^STOXX50E': 'Euro Stoxx 50',
+        '^SSMI': 'SMI',
+        '^HSI': 'Hang Seng'
     };
     
     console.log('Lade Indices-Daten...');
@@ -236,24 +239,28 @@ async function updateIndicesData() {
                         // Finde die entsprechende Index-Card
                         document.querySelectorAll('.index-card').forEach(card => {
                             const titleElement = card.querySelector('h3');
-                            if (titleElement && titleElement.textContent.includes(name.split('(')[0].trim())) {
-                                // Update Wert
-                                const valueElement = card.querySelector('.index-value');
-                                if (valueElement && currentPrice) {
-                                    valueElement.textContent = formatPrice(currentPrice, 2);
-                                }
-                                
-                                // Update Badge
-                                const badge = card.querySelector('.badge');
-                                if (badge) {
-                                    updateBadge(badge, change);
-                                }
-                                
-                                // Update High/Low
-                                const detailValues = card.querySelectorAll('.detail-value');
-                                if (detailValues.length >= 2) {
-                                    if (high) detailValues[0].textContent = formatPrice(high, 2);
-                                    if (low) detailValues[1].textContent = formatPrice(low, 2);
+                            if (titleElement) {
+                                const cardTitle = titleElement.textContent;
+                                // Prüfe ob der Index-Name im Titel vorkommt
+                                if (cardTitle.includes(name)) {
+                                    // Update Wert
+                                    const valueElement = card.querySelector('.index-value');
+                                    if (valueElement && currentPrice) {
+                                        valueElement.textContent = formatPrice(currentPrice, 2);
+                                    }
+                                    
+                                    // Update Badge
+                                    const badge = card.querySelector('.badge');
+                                    if (badge) {
+                                        updateBadge(badge, change);
+                                    }
+                                    
+                                    // Update High/Low
+                                    const detailValues = card.querySelectorAll('.detail-value');
+                                    if (detailValues.length >= 2) {
+                                        if (high) detailValues[0].textContent = formatPrice(high, 2);
+                                        if (low) detailValues[1].textContent = formatPrice(low, 2);
+                                    }
                                 }
                             }
                         });
@@ -278,14 +285,18 @@ async function updateCommoditiesData() {
     const commodities = {
         'GC=F': 'Gold',
         'SI=F': 'Silber',
-        'HG=F': 'Kupfer',
-        'CL=F': 'Crude Oil',
-        'NG=F': 'Erdgas',
+        'PL=F': 'Platin',
+        'PA=F': 'Palladium',
+        'CL=F': 'WTI Crude Oil',
+        'BZ=F': 'Brent Crude Oil',
+        'NG=F': 'Natural Gas',
+        'RB=F': 'Gasoline',
         'ZW=F': 'Weizen',
         'ZS=F': 'Sojabohnen',
         'KC=F': 'Kaffee',
         'SB=F': 'Zucker',
-        'LE=F': 'Vieh'
+        'LE=F': 'Lebendvieh',
+        'HG=F': 'Kupfer'
     };
 
     console.log('Lade Rohstoff-Daten...');
@@ -314,24 +325,28 @@ async function updateCommoditiesData() {
                         // Finde die entsprechende Futures-Card
                         document.querySelectorAll('.futures-card').forEach(card => {
                             const titleElement = card.querySelector('h3');
-                            if (titleElement && titleElement.textContent.includes(name)) {
-                                // Update Preis
-                                const priceElement = card.querySelector('.futures-price');
-                                if (priceElement) {
-                                    priceElement.textContent = `$${formatPrice(currentPrice)}`;
-                                }
-                                
-                                // Update Badge
-                                const badge = card.querySelector('.badge');
-                                if (badge) {
-                                    updateBadge(badge, change);
-                                }
-                                
-                                // Update High/Low in stats
-                                const statValues = card.querySelectorAll('.stat-value');
-                                if (statValues.length >= 2 && high && low) {
-                                    statValues[0].textContent = `$${formatPrice(high)}`;
-                                    statValues[1].textContent = `$${formatPrice(low)}`;
+                            if (titleElement) {
+                                const cardTitle = titleElement.textContent;
+                                // Prüfe ob der Name im Titel vorkommt (z.B. "Gold" in "Gold (XAU/USD)")
+                                if (cardTitle.includes(name)) {
+                                    // Update Preis
+                                    const priceElement = card.querySelector('.futures-price');
+                                    if (priceElement) {
+                                        priceElement.textContent = `$${formatPrice(currentPrice)}`;
+                                    }
+                                    
+                                    // Update Badge
+                                    const badge = card.querySelector('.badge');
+                                    if (badge) {
+                                        updateBadge(badge, change);
+                                    }
+                                    
+                                    // Update High/Low in stats
+                                    const statValues = card.querySelectorAll('.stat-value');
+                                    if (statValues.length >= 2 && high && low) {
+                                        statValues[0].textContent = `$${formatPrice(high)}`;
+                                        statValues[1].textContent = `$${formatPrice(low)}`;
+                                    }
                                 }
                             }
                         });
