@@ -10,8 +10,37 @@ const CORS_PROXIES = [
 
 let currentProxyIndex = 0;
 
+// Cache für letzte gültige Preise
+const lastValidPrices = new Map();
+
 function getCorsProxy() {
     return CORS_PROXIES[currentProxyIndex];
+}
+
+// Validiere ob Preisänderung realistisch ist
+function isValidPriceChange(symbol, newPrice, maxChangePercent = 10) {
+    if (!newPrice || isNaN(newPrice) || newPrice <= 0) {
+        return false;
+    }
+    
+    const lastPrice = lastValidPrices.get(symbol);
+    if (!lastPrice) {
+        // Erster Preis - akzeptiere ihn und speichere
+        lastValidPrices.set(symbol, newPrice);
+        return true;
+    }
+    
+    // Berechne prozentuale Änderung
+    const changePercent = Math.abs((newPrice - lastPrice) / lastPrice * 100);
+    
+    if (changePercent > maxChangePercent) {
+        console.warn(`⚠️ Unrealistische Preisänderung für ${symbol}: ${lastPrice.toFixed(2)} → ${newPrice.toFixed(2)} (${changePercent.toFixed(1)}%)`);
+        return false;
+    }
+    
+    // Preis ist gültig - speichere ihn
+    lastValidPrices.set(symbol, newPrice);
+    return true;
 }
 
 // Utility Funktionen
@@ -95,6 +124,13 @@ async function updateCryptoData() {
             
             if (cryptoId && data[cryptoId]) {
                 const crypto = data[cryptoId];
+                
+                // Validierung mit realistischer Preisänderung (max 20% für volatile Kryptos)
+                if (!isValidPriceChange(cryptoId, crypto.usd, 20)) {
+                    console.warn(`⚠️ Unrealistischer Preis für ${ticker}, überspringe Update`);
+                    return;
+                }
+                
                 console.log(`Aktualisiere ${ticker}:`, crypto);
                 
                 // Update Preis
@@ -157,6 +193,13 @@ async function updateStockData() {
                     if (result && result.meta) {
                         const currentPrice = result.meta.regularMarketPrice;
                         const previousClose = result.meta.chartPreviousClose || result.meta.previousClose;
+                        
+                        // Validierung mit realistischer Preisänderung (max 15% für Aktien)
+                        if (!isValidPriceChange(ticker, currentPrice, 15)) {
+                            console.warn(`⚠️ Unrealistischer Preis für ${ticker}, überspringe Update`);
+                            continue;
+                        }
+                        
                         const change = ((currentPrice - previousClose) / previousClose) * 100;
                         
                         console.log(`${ticker}: $${currentPrice.toFixed(2)} (${change.toFixed(2)}%)`);
@@ -235,10 +278,10 @@ async function updateIndicesData() {
                         const currentPrice = result.meta.regularMarketPrice;
                         const previousClose = result.meta.chartPreviousClose || result.meta.previousClose;
                         
-                        // Validierung: Preis muss eine gültige Zahl und > 0 sein
-                        if (!currentPrice || isNaN(currentPrice) || currentPrice <= 0) {
-                            console.warn(`⚠️ Ungültiger Preis für ${name}: ${currentPrice}`);
-                            return;
+                        // Validierung mit realistischer Preisänderung (max 10% pro Update)
+                        if (!isValidPriceChange(symbol, currentPrice, 10)) {
+                            console.warn(`⚠️ Ungültiger oder unrealistischer Preis für ${name}, überspringe Update`);
+                            continue;
                         }
                         
                         const change = ((currentPrice - previousClose) / previousClose) * 100;
@@ -332,6 +375,12 @@ async function updateCommoditiesData() {
                         const change = ((currentPrice - previousClose) / previousClose) * 100;
                         const high = result.meta.regularMarketDayHigh;
                         const low = result.meta.regularMarketDayLow;
+                        
+                        // Validiere Preis (Rohstoffe: max 15% Änderung)
+                        if (!isValidPriceChange(symbol, currentPrice, 15)) {
+                            console.warn(`⚠️ Unrealistische Preisänderung für ${name} ignoriert`);
+                            continue;
+                        }
                         
                         console.log(`${name}: $${currentPrice.toFixed(2)} (${change.toFixed(2)}%)`);
                         
