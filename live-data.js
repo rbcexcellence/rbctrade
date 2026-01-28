@@ -13,61 +13,33 @@ let currentProxyIndex = 0;
 // Cache für letzte gültige Preise
 const lastValidPrices = new Map();
 
-// Absolute Mindest-/Höchstwerte für verschiedene Asset-Klassen
-const PRICE_RANGES = {
-    // Indices (sollten im Tausender-Bereich sein)
-    '^GSPC': { min: 3000, max: 10000 },  // S&P 500
-    '^IXIC': { min: 10000, max: 30000 }, // Nasdaq
-    '^DJI': { min: 25000, max: 60000 },  // Dow Jones
-    
-    // Aktien (typische Ranges)
-    'AAPL': { min: 50, max: 300 },
-    'MSFT': { min: 100, max: 500 },
-    'GOOGL': { min: 50, max: 200 },
-    'AMZN': { min: 50, max: 250 },
-    'NVDA': { min: 50, max: 200 },
-    'TSLA': { min: 50, max: 500 },
-    'META': { min: 100, max: 700 },
-    
-    // Rohstoffe
-    'GC=F': { min: 1000, max: 3000 },    // Gold
-    'SI=F': { min: 15, max: 50 },        // Silber
-    'CL=F': { min: 30, max: 150 },       // Oil
-    'BZ=F': { min: 30, max: 150 }        // Brent
-};
-
 function getCorsProxy() {
     return CORS_PROXIES[currentProxyIndex];
 }
 
 // Validiere ob Preisänderung realistisch ist
-function isValidPriceChange(symbol, newPrice, maxChangePercent = 10) {
+// Nutzt previousClose als Referenz falls verfügbar
+function isValidPriceChange(symbol, newPrice, previousClose = null, maxChangePercent = 10) {
     if (!newPrice || isNaN(newPrice) || newPrice <= 0) {
         return false;
     }
     
-    // Prüfe absolute Ranges falls definiert
-    const range = PRICE_RANGES[symbol];
-    if (range) {
-        if (newPrice < range.min || newPrice > range.max) {
-            console.warn(`⚠️ Preis außerhalb realistischer Range für ${symbol}: ${newPrice.toFixed(2)} (erlaubt: ${range.min}-${range.max})`);
+    // Nutze previousClose als primäre Referenz wenn verfügbar
+    let referencePrice = previousClose;
+    
+    // Falls kein previousClose, nutze gespeicherten Preis
+    if (!referencePrice) {
+        referencePrice = lastValidPrices.get(symbol);
+    }
+    
+    // Wenn wir eine Referenz haben, validiere gegen diese
+    if (referencePrice && referencePrice > 0) {
+        const changePercent = Math.abs((newPrice - referencePrice) / referencePrice * 100);
+        
+        if (changePercent > maxChangePercent) {
+            console.warn(`⚠️ Unrealistische Preisänderung für ${symbol}: ${referencePrice.toFixed(2)} → ${newPrice.toFixed(2)} (${changePercent.toFixed(1)}%)`);
             return false;
         }
-    }
-    
-    const lastPrice = lastValidPrices.get(symbol);
-    if (!lastPrice) {
-        // Erster Preis - speichere ihn nur wenn er realistisch ist
-        lastValidPrices.set(symbol, newPrice);
-        return true;
-    }
-    
-    // Berechne prozentuale Änderung
-    const changePercent = Math.abs((newPrice - lastPrice) / lastPrice * 100);
-    
-    if (changePercent > maxChangePercent) {
-        console.warn(`⚠️ Unrealistische Preisänderung für ${symbol}: ${lastPrice.toFixed(2)} → ${newPrice.toFixed(2)} (${changePercent.toFixed(1)}%)`);
-        return false;
     }
     
     // Preis ist gültig - speichere ihn
@@ -226,8 +198,8 @@ async function updateStockData() {
                         const currentPrice = result.meta.regularMarketPrice;
                         const previousClose = result.meta.chartPreviousClose || result.meta.previousClose;
                         
-                        // Validierung mit realistischer Preisänderung (max 15% für Aktien)
-                        if (!isValidPriceChange(ticker, currentPrice, 15)) {
+                        // Validierung mit previousClose als Referenz (max 15% Änderung)
+                        if (!isValidPriceChange(ticker, currentPrice, previousClose, 15)) {
                             console.warn(`⚠️ Unrealistischer Preis für ${ticker}, überspringe Update`);
                             continue;
                         }
@@ -310,8 +282,8 @@ async function updateIndicesData() {
                         const currentPrice = result.meta.regularMarketPrice;
                         const previousClose = result.meta.chartPreviousClose || result.meta.previousClose;
                         
-                        // Validierung mit realistischer Preisänderung (max 10% pro Update)
-                        if (!isValidPriceChange(symbol, currentPrice, 10)) {
+                        // Validierung mit previousClose als Referenz (max 10% Änderung)
+                        if (!isValidPriceChange(symbol, currentPrice, previousClose, 10)) {
                             console.warn(`⚠️ Ungültiger oder unrealistischer Preis für ${name}, überspringe Update`);
                             continue;
                         }
@@ -408,8 +380,8 @@ async function updateCommoditiesData() {
                         const high = result.meta.regularMarketDayHigh;
                         const low = result.meta.regularMarketDayLow;
                         
-                        // Validiere Preis (Rohstoffe: max 15% Änderung)
-                        if (!isValidPriceChange(symbol, currentPrice, 15)) {
+                        // Validiere Preis mit previousClose als Referenz (max 15% Änderung)
+                        if (!isValidPriceChange(symbol, currentPrice, previousClose, 15)) {
                             console.warn(`⚠️ Unrealistische Preisänderung für ${name} ignoriert`);
                             continue;
                         }
