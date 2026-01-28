@@ -260,12 +260,7 @@ async function updateIndicesData() {
                     }
                 }
                 
-                await new Promise(resolve => setTimeout(resolve, 3
-                        });
-                    }
-                }
-                
-                await new Promise(resolve => setTimeout(resolve, 200));
+                await new Promise(resolve => setTimeout(resolve, 300));
                 
             } catch (error) {
                 console.warn(`Fehler bei ${name}:`, error.message);
