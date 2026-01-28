@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kontakt - RBC Excellence</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <h1>RBC<span>Excellence</span></h1>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="index.html">Home</a></li>
+                <li><a href="krypto.html">Krypto</a></li>
+                <li><a href="indices.html">Indices</a></li>
+                <li><a href="futures.html">Rohstoffe</a></li>
+                <li><a href="assets.html">Aktien</a></li>
+                <li><a href="kontakt.html" class="active">Kontakt</a></li>
+            </ul>
+            <div class="hamburger">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Page Header -->
+    <section class="page-header">
+        <div class="container">
+            <h1>Kontakt</h1>
+            <p>Hast du Fragen oder Anregungen? Wir freuen uns von dir zu hören!</p>
+        </div>
+    </section>
+
+    <!-- Kontakt Section -->
+    <section class="kontakt">
+        <div class="container">
+            <div class="kontakt-grid">
+                <div class="kontakt-info">
+                    <h2>Kontaktiere uns</h2>
+                    <p>Unser Team steht dir bei allen Fragen rund um Krypto-Trading, Indices und unsere Plattform zur Verfügung.</p>
+                    
+                    <div class="info-item">
+                        <div class="info-icon">📧</div>
+                        <h3>E-Mail</h3>
+                        <p><a href="mailto:info@rbc-excellence.com">info@rbc-excellence.com</a></p>
+                        <p class="info-detail">Antwortzeit: Innerhalb von 24 Stunden</p>
+                    </div>
+                    
+                    <div class="info-item">
+                        <div class="info-icon">💬</div>
+                        <h3>Live Chat</h3>
+                        <p>Montag - Freitag: 9:00 - 18:00 Uhr</p>
+                        <p class="info-detail">Sofortige Unterstützung für dringende Fragen</p>
+                    </div>
+                    
+                    <div class="info-item">
+                        <div class="info-icon">📞</div>
+                        <h3>Telefon</h3>
+                        <p>+49 (0) 123 456 789</p>
+                        <p class="info-detail">Mo-Fr: 10:00 - 17:00 Uhr</p>
+                    </div>
+                    
+                    <div class="info-item">
+                        <div class="info-icon">🌐</div>
+                        <h3>Social Media</h3>
+                        <div class="social-links">
+                            <a href="#" class="social-link">
+                                <span class="social-icon">🐦</span>
+                                Twitter
+                            </a>
+                            <a href="#" class="social-link">
+                                <span class="social-icon">✈️</span>
+                                Telegram
+                            </a>
+                            <a href="#" class="social-link">
+                                <span class="social-icon">💬</span>
+                                Discord
+                            </a>
+                            <a href="#" class="social-link">
+                                <span class="social-icon">📱</span>
+                                LinkedIn
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="info-item">
+                        <div class="info-icon">📍</div>
+                        <h3>Hauptsitz</h3>
+                        <p>RBC Excellence GmbH<br>
+                        Beispielstraße 123<br>
+                        10115 Berlin, Deutschland</p>
+                    </div>
+                </div>
+
+                <form class="kontakt-form">
+                    <h2>Schreib uns eine Nachricht</h2>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="name">Name *</label>
+                            <input type="text" id="name" name="name" placeholder="Dein Name" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="email">E-Mail *</label>
+                            <input type="email" id="email" name="email" placeholder="deine@email.com" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="subject">Betreff *</label>
+                        <input type="text" id="subject" name="subject" placeholder="Worum geht es?" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="category">Kategorie</label>
+                        <select id="category" name="category">
+                            <option value="">Bitte wählen...</option>
+                            <option value="general">Allgemeine Anfrage</option>
+                            <option value="indices">Frage zu Indices</option>
+                            <option value="trading">Trading Support</option>
+                            <option value="technical">Technischer Support</option>
+                            <option value="partnership">Partnership Anfrage</option>
+                            <option value="other">Sonstiges</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="message">Nachricht *</label>
+                        <textarea id="message" name="message" placeholder="Deine Nachricht..." rows="6" required></textarea>
+                    </div>
+
+                    <div class="form-group checkbox-group">
+                        <label>
+                            <input type="checkbox" name="privacy" required>
+                            <span>Ich habe die <a href="#">Datenschutzerklärung</a> gelesen und akzeptiere diese. *</span>
+                        </label>
+                    </div>
+
+                    <div class="form-group checkbox-group">
+                        <label>
+                            <input type="checkbox" name="newsletter">
+                            <span>Ich möchte den Newsletter mit Trading-Tipps und Markt-Updates erhalten.</span>
+                        </label>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">Nachricht senden</button>
+                    <p class="form-note">* Pflichtfelder</p>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <!-- FAQ Section -->
+    <section class="faq-section">
+        <div class="container">
+            <h2 class="section-title">Häufig gestellte Fragen</h2>
+            <p class="section-subtitle">Vielleicht findest du hier bereits die Antwort auf deine Frage</p>
+            
+            <div class="faq-grid">
+                <div class="faq-item">
+                    <h3>Wie nutze ich die Indices?</h3>
+                    <p>Unsere Indices sind als Referenz-Portfolios gedacht. Du kannst die Gewichtungen nutzen, um dein eigenes Portfolio entsprechend aufzubauen und zu diversifizieren.</p>
+                </div>
+
+                <div class="faq-item">
+                    <h3>Sind die Daten in Echtzeit?</h3>
+                    <p>Ja, alle Index-Werte werden in Echtzeit aktualisiert und spiegeln die aktuellen Marktpreise wider. Updates erfolgen alle 60 Sekunden.</p>
+                </div>
+
+                <div class="faq-item">
+                    <h3>Kann ich direkt über die Plattform traden?</h3>
+                    <p>Aktuell bieten wir Informationen und Analysen. Für direktes Trading verweisen wir auf etablierte Partner-Exchanges.</p>
+                </div>
+
+                <div class="faq-item">
+                    <h3>Ist die Nutzung kostenlos?</h3>
+                    <p>Ja, die Basisversion mit Zugang zu allen Indices und Trading-Tipps ist komplett kostenlos. Premium-Features sind in Planung.</p>
+                </div>
+
+                <div class="faq-item">
+                    <h3>Wie werden die Indices zusammengestellt?</h3>
+                    <p>Unsere Indices basieren auf Marktkapitalisierung, Liquidität, Projekt-Fundamentals und werden monatlich rebalanciert.</p>
+                </div>
+
+                <div class="faq-item">
+                    <h3>Bietet ihr auch Trading-Signale?</h3>
+                    <p>Wir bieten Marktanalysen und Bildungsinhalte, aber keine direkten Trading-Signale. Jeder sollte eigene Entscheidungen treffen (DYOR).</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <h3>RBC<span>Excellence</span></h3>
+                    <p>Deine Plattform für professionelle Krypto Asset Indices und Trading Ressourcen</p>
+                </div>
+                <div class="footer-links">
+                    <div class="footer-column">
+                        <h4>Plattform</h4>
+                        <ul>
+                            <li><a href="krypto.html">Krypto</a></li>
+                            <li><a href="indices.html">Indices</a></li>
+                            <li><a href="futures.html">Rohstoffe</a></li>
+                            <li><a href="assets.html">Aktien</a></li>
+                        </ul>
+                    </div>
+                    <div class="footer-column">
+                        <h4>Rechtliches</h4>
+                        <ul>
+                            <li><a href="impressum.html">Impressum</a></li>
+                            <li><a href="datenschutz.html">Datenschutz</a></li>
+                            <li><a href="agb.html">AGB</a></li>
+                        </ul>
+                    </div>
+                    <div class="footer-column">
+                        <h4>Support</h4>
+                        <ul>
+                            <li><a href="kontakt.html">Kontakt</a></li>
+                            <li><a href="faq.html">FAQ</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 RBC Excellence. Alle Rechte vorbehalten.</p>
+                <p class="disclaimer">Hinweis: Kryptowährungen sind hochvolatil. Investiere nur Geld, das du bereit bist zu verlieren.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
