@@ -16,11 +16,8 @@ function getCorsProxy() {
 
 // Utility Funktionen
 function formatPrice(price, decimals = 2) {
-    if (!price || isNaN(price)) return '$0.00';
-    return new Intl.NumberFormat('de-CH', {
-        minimumFractionDigits: decimals,
-        maximumFractionDigits: decimals
-    }).format(price);
+    if (!price || isNaN(price)) return '0.00';
+    return price.toFixed(decimals);
 }
 
 function formatMarketCap(marketCap) {
@@ -63,7 +60,7 @@ async function updateCryptoData() {
         'cardano': 'ADA',
         'polkadot': 'DOT',
         'chainlink': 'LINK',
-        'polygon': 'MATIC',
+        'matic-network': 'MATIC',
         'uniswap': 'UNI'
     };
 
@@ -71,30 +68,37 @@ async function updateCryptoData() {
         const ids = Object.keys(cryptoIds).join(',');
         const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true`;
         
+        console.log('Lade Krypto-Daten von CoinGecko...');
         const response = await fetch(url);
         
         if (!response.ok) {
-            console.error('CoinGecko API Error:', response.status);
+            console.error('CoinGecko API Error:', response.status, response.statusText);
             return;
         }
         
         const data = await response.json();
-        console.log('CoinGecko Daten empfangen:', Object.keys(data).length, 'Coins');
+        console.log('✅ CoinGecko Daten empfangen:', data);
         
         // Update jede Krypto-Card
         document.querySelectorAll('.crypto-card').forEach(card => {
-            const ticker = card.querySelector('.crypto-ticker')?.textContent;
+            const tickerElement = card.querySelector('.crypto-ticker');
+            if (!tickerElement) return;
+            
+            const ticker = tickerElement.textContent.trim();
             
             // Finde die entsprechende Crypto ID
             const cryptoId = Object.keys(cryptoIds).find(id => cryptoIds[id] === ticker);
             
             if (cryptoId && data[cryptoId]) {
                 const crypto = data[cryptoId];
+                console.log(`Aktualisiere ${ticker}:`, crypto);
                 
                 // Update Preis
                 const priceElement = card.querySelector('.crypto-price');
                 if (priceElement && crypto.usd) {
-                    priceElement.textContent = `$${formatPrice(crypto.usd)}`;
+                    const newPrice = `$${formatPrice(crypto.usd)}`;
+                    priceElement.textContent = newPrice;
+                    console.log(`${ticker} Preis aktualisiert: ${newPrice}`);
                 }
                 
                 // Update Prozent-Badge
@@ -116,7 +120,7 @@ async function updateCryptoData() {
             }
         });
         
-        console.log('✅ Krypto-Daten aktualisiert');
+        console.log('✅ Krypto-Daten erfolgreich aktualisiert');
     } catch (error) {
         console.error('❌ Fehler beim Laden der Krypto-Daten:', error);
     }
