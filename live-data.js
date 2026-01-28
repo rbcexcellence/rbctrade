@@ -278,22 +278,20 @@ async function updateCommoditiesData() {
     const commodities = {
         'GC=F': 'Gold',
         'SI=F': 'Silber',
-        'PL=F': 'Platin',
-        'PA=F': 'Palladium',
-        'CL=F': 'WTI Crude Oil',
-        'BZ=F': 'Brent Crude Oil',
-        'NG=F': 'Natural Gas',
-        'RB=F': 'Gasoline',
+        'HG=F': 'Kupfer',
+        'CL=F': 'Crude Oil',
+        'NG=F': 'Erdgas',
         'ZW=F': 'Weizen',
-        'ZC=F': 'Mais',
         'ZS=F': 'Sojabohnen',
         'KC=F': 'Kaffee',
         'SB=F': 'Zucker',
-        'LE=F': 'Lebendvieh',
-        'HG=F': 'Kupfer'
+        'LE=F': 'Vieh'
     };
 
-    try const corsProxy = 'https://api.allorigins.win/raw?url=';
+    console.log('Lade Rohstoff-Daten...');
+
+    try {
+        const corsProxy = 'https://api.allorigins.win/raw?url=';
         
         for (const [symbol, name] of Object.entries(commodities)) {
             try {
@@ -302,7 +300,7 @@ async function updateCommoditiesData() {
                 
                 if (response.ok) {
                     const data = await response.json();
-                    const result = data.chart.result[0];
+                    const result = data?.chart?.result?.[0];
                     
                     if (result && result.meta) {
                         const currentPrice = result.meta.regularMarketPrice;
@@ -310,6 +308,8 @@ async function updateCommoditiesData() {
                         const change = ((currentPrice - previousClose) / previousClose) * 100;
                         const high = result.meta.regularMarketDayHigh;
                         const low = result.meta.regularMarketDayLow;
+                        
+                        console.log(`${name}: $${currentPrice.toFixed(2)} (${change.toFixed(2)}%)`);
                         
                         // Finde die entsprechende Futures-Card
                         document.querySelectorAll('.futures-card').forEach(card => {
@@ -323,21 +323,22 @@ async function updateCommoditiesData() {
                                 
                                 // Update Badge
                                 const badge = card.querySelector('.badge');
-                                updateBadge(badge, change);
+                                if (badge) {
+                                    updateBadge(badge, change);
+                                }
                                 
                                 // Update High/Low in stats
                                 const statValues = card.querySelectorAll('.stat-value');
-                                if (statValues.length >= 2) {
-                                    if (high) statValues[0].textContent = `$${formatPrice(high)}`;
-                                    if (low) statValues[1].textContent = `$${formatPrice(low)}`;
+                                if (statValues.length >= 2 && high && low) {
+                                    statValues[0].textContent = `$${formatPrice(high)}`;
+                                    statValues[1].textContent = `$${formatPrice(low)}`;
                                 }
                             }
                         });
                     }
                 }
                 
-                await new Promise(resolve => setTimeout(resolve, 2
-                await new Promise(resolve => setTimeout(resolve, 100));
+                await new Promise(resolve => setTimeout(resolve, 300));
                 
             } catch (error) {
                 console.warn(`Fehler bei ${name}:`, error.message);
