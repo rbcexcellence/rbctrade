@@ -52,30 +52,21 @@ window.addEventListener('scroll', () => {
     });
 });
 
-// Newsletter Form Handler
-const newsletterForm = document.querySelector('.newsletter-form');
-newsletterForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const email = newsletterForm.querySelector('input[type="email"]').value;
-    
-    // Simulate form submission
-    alert(`Vielen Dank! Du wirst demnächst Updates an ${email} erhalten.`);
-    newsletterForm.reset();
-});
-
 // Contact Form Handler
 const kontaktForm = document.querySelector('.kontakt-form');
-kontaktForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    
-    const name = kontaktForm.querySelector('input[type="text"]').value;
-    const email = kontaktForm.querySelector('input[type="email"]').value;
-    const message = kontaktForm.querySelector('textarea').value;
-    
-    // Simulate form submission
-    alert(`Vielen Dank ${name}! Deine Nachricht wurde gesendet. Wir melden uns bald bei dir.`);
-    kontaktForm.reset();
-});
+if (kontaktForm) {
+    kontaktForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        
+        const name = kontaktForm.querySelector('input[type="text"]').value;
+        const email = kontaktForm.querySelector('input[type="email"]').value;
+        const message = kontaktForm.querySelector('textarea').value;
+        
+        // Simulate form submission
+        alert(`Vielen Dank ${name}! Deine Nachricht wurde gesendet. Wir melden uns bald bei dir.`);
+        kontaktForm.reset();
+    });
+}
 
 // Animate elements on scroll
 const observerOptions = {

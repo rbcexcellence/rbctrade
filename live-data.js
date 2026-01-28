@@ -205,7 +205,9 @@ async function updateIndicesData() {
         '^DJI': 'Dow Jones',     // Dow Jones
         '^GDAXI': 'DAX',         // DAX
         '^FTSE': 'FTSE 100',     // FTSE 100
-        '^N225': 'Nikkei 225',   // Nikkei
+        '^N225': 'Nikkei 225'    // Nikkei
+    };
+    
     console.log('Lade Indices-Daten...');
     
     try {
