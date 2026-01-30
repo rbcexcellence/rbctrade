@@ -352,6 +352,11 @@ section {
     color: var(--error-red);
 }
 
+.badge.live-placeholder {
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: var(--text-secondary) !important;
+}
+
 .index-value {
     font-size: 2rem;
     font-weight: 700;

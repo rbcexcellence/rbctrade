@@ -118,7 +118,36 @@ function restoreFallbacksIfStillMissing(selector) {
         if (el.dataset.liveUpdated === '1') return;
         if (!el.dataset.fallbackText) return;
         el.textContent = el.dataset.fallbackText;
+        if (el.dataset.fallbackClassName) {
+            el.className = el.dataset.fallbackClassName;
+        }
         el.classList.remove('live-placeholder');
+    });
+}
+
+function prepareTextPlaceholders(selector, placeholderText = '—') {
+    document.querySelectorAll(selector).forEach(el => {
+        if (!el.dataset.fallbackText) {
+            el.dataset.fallbackText = el.textContent;
+        }
+        el.textContent = placeholderText;
+        el.classList.add('live-placeholder');
+        el.dataset.liveUpdated = '0';
+    });
+}
+
+function prepareBadgePlaceholders(selector) {
+    document.querySelectorAll(selector).forEach(el => {
+        if (!el.dataset.fallbackText) {
+            el.dataset.fallbackText = el.textContent;
+        }
+        if (!el.dataset.fallbackClassName) {
+            el.dataset.fallbackClassName = el.className;
+        }
+
+        el.textContent = '—';
+        el.className = 'badge live-placeholder';
+        el.dataset.liveUpdated = '0';
     });
 }
 
@@ -182,17 +211,20 @@ async function updateCryptoData() {
                 const badge = card.querySelector('.badge');
                 if (badge && crypto.usd_24h_change !== undefined) {
                     updateBadge(badge, crypto.usd_24h_change);
+                    markLiveUpdated(badge);
                 }
                 
                 // Update Marktkappe
                 const statValues = card.querySelectorAll('.stat-value');
                 if (statValues.length > 0 && crypto.usd_market_cap) {
                     statValues[0].textContent = formatMarketCap(crypto.usd_market_cap);
+                    markLiveUpdated(statValues[0]);
                 }
                 
                 // Update 24h Volumen
                 if (statValues.length > 1 && crypto.usd_24h_vol) {
                     statValues[1].textContent = formatVolume(crypto.usd_24h_vol);
+                    markLiveUpdated(statValues[1]);
                 }
             }
         });
@@ -245,12 +277,14 @@ async function updateStockData() {
                         const badge = card.querySelector('.badge');
                         if (badge) {
                             updateBadge(badge, change);
+                                markLiveUpdated(badge);
                         }
                         
                         // Update Market Cap wenn vorhanden
                         const statValues = card.querySelectorAll('.stat-value');
                         if (result.meta.marketCap && statValues.length > 0) {
                             statValues[0].textContent = formatMarketCap(result.meta.marketCap);
+                                markLiveUpdated(statValues[0]);
                         }
 
                         updatedCount++;
@@ -321,13 +355,20 @@ async function updateIndicesData() {
                         const badge = card.querySelector('.badge');
                         if (badge) {
                             updateBadge(badge, change);
+                                markLiveUpdated(badge);
                         }
                         
                         // Update High/Low
                         const detailValues = card.querySelectorAll('.detail-value');
                         if (detailValues.length >= 2) {
-                            if (high && high > 0) detailValues[0].textContent = formatPrice(high, 2);
-                            if (low && low > 0) detailValues[1].textContent = formatPrice(low, 2);
+                                if (high && high > 0) {
+                                    detailValues[0].textContent = formatPrice(high, 2);
+                                    markLiveUpdated(detailValues[0]);
+                                }
+                                if (low && low > 0) {
+                                    detailValues[1].textContent = formatPrice(low, 2);
+                                    markLiveUpdated(detailValues[1]);
+                                }
                         }
 
                         updatedCount++;
@@ -404,6 +445,7 @@ async function updateCommoditiesData() {
                         const badge = card.querySelector('.badge');
                         if (badge) {
                             updateBadge(badge, change);
+                                markLiveUpdated(badge);
                         }
                         
                         // Update High/Low in stats
@@ -411,6 +453,8 @@ async function updateCommoditiesData() {
                         if (statValues.length >= 2 && high && low) {
                             statValues[0].textContent = `$${formatPrice(high)}`;
                             statValues[1].textContent = `$${formatPrice(low)}`;
+                                markLiveUpdated(statValues[0]);
+                                markLiveUpdated(statValues[1]);
                         }
 
                         updatedCount++;
@@ -455,10 +499,16 @@ async function initLiveData() {
     // ein Teil der Requests erfolgreich ist).
     if (currentPage.startsWith('krypto')) {
         preparePricePlaceholders('.crypto-card .crypto-price');
+        prepareBadgePlaceholders('.crypto-card .badge');
+        prepareTextPlaceholders('.crypto-card .stat-value');
     } else if (currentPage.startsWith('indices')) {
         preparePricePlaceholders('.index-card[data-symbol] .index-value');
+        prepareBadgePlaceholders('.index-card[data-symbol] .badge');
+        prepareTextPlaceholders('.index-card[data-symbol] .detail-value');
     } else if (currentPage.startsWith('assets') || currentPage.startsWith('futures')) {
         preparePricePlaceholders('.futures-card[data-symbol] .futures-price');
+        prepareBadgePlaceholders('.futures-card[data-symbol] .badge');
+        prepareTextPlaceholders('.futures-card[data-symbol] .stat-value');
     }
 
     // Jetzt kann die Seiten-Loading-Klasse weg – die Preise sind bereits neutralisiert.
@@ -541,10 +591,16 @@ async function initLiveData() {
     window.setTimeout(() => {
         if (currentPage.startsWith('krypto')) {
             restoreFallbacksIfStillMissing('.crypto-card .crypto-price');
+            restoreFallbacksIfStillMissing('.crypto-card .badge');
+            restoreFallbacksIfStillMissing('.crypto-card .stat-value');
         } else if (currentPage.startsWith('indices')) {
             restoreFallbacksIfStillMissing('.index-card[data-symbol] .index-value');
+            restoreFallbacksIfStillMissing('.index-card[data-symbol] .badge');
+            restoreFallbacksIfStillMissing('.index-card[data-symbol] .detail-value');
         } else if (currentPage.startsWith('assets') || currentPage.startsWith('futures')) {
             restoreFallbacksIfStillMissing('.futures-card[data-symbol] .futures-price');
+            restoreFallbacksIfStillMissing('.futures-card[data-symbol] .badge');
+            restoreFallbacksIfStillMissing('.futures-card[data-symbol] .stat-value');
         }
     }, FALLBACK_RESTORE_AFTER_MS);
 
