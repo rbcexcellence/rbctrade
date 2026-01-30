@@ -441,6 +441,9 @@ async function initLiveData() {
     console.log('📍 Seite:', currentPage);
     console.log('🌐 Protocol:', window.location.protocol);
 
+    // Status UI
+    setLiveStatus('loading', 'Live-Daten werden geladen…', { showRetry: false });
+
     // Während des initialen Loads: Hardcode ausblenden (wenn Seite die Klasse gesetzt hat)
     const hasLoadingClass = document.body?.classList?.contains('live-loading');
     if (hasLoadingClass) {
@@ -469,29 +472,69 @@ async function initLiveData() {
         setInterval(updateCryptoData, 60000);
         document.body.classList.toggle('live-ready', updated > 0);
         document.body.classList.toggle('live-failed', updated === 0);
+
+        if (updated > 0) {
+            setLiveStatus('success', 'Live-Daten aktiv');
+            wireRetry(async () => {
+                const retryUpdated = await updateCryptoData();
+                setLiveStatus(retryUpdated > 0 ? 'success' : 'error', retryUpdated > 0 ? 'Live-Daten aktiv' : 'Live-Daten nicht erreichbar', { showRetry: retryUpdated === 0 });
+            });
+        } else {
+            setLiveStatus('error', 'Live-Daten nicht erreichbar', { showRetry: true });
+            wireRetry(async () => {
+                const retryUpdated = await updateCryptoData();
+                setLiveStatus(retryUpdated > 0 ? 'success' : 'error', retryUpdated > 0 ? 'Live-Daten aktiv' : 'Live-Daten nicht erreichbar', { showRetry: retryUpdated === 0 });
+            });
+        }
     } 
     else if (currentPage.startsWith('assets')) {
         const updated = await updateStockData();
         setInterval(updateStockData, 60000);
         document.body.classList.toggle('live-ready', updated > 0);
         document.body.classList.toggle('live-failed', updated === 0);
+
+        setLiveStatus(updated > 0 ? 'success' : 'error', updated > 0 ? 'Live-Daten aktiv' : 'Live-Daten nicht erreichbar', { showRetry: updated === 0 });
+        wireRetry(async () => {
+            const retryUpdated = await updateStockData();
+            setLiveStatus(retryUpdated > 0 ? 'success' : 'error', retryUpdated > 0 ? 'Live-Daten aktiv' : 'Live-Daten nicht erreichbar', { showRetry: retryUpdated === 0 });
+        });
     } 
     else if (currentPage.startsWith('indices')) {
         const updated = await updateIndicesData();
         setInterval(updateIndicesData, 60000);
         document.body.classList.toggle('live-ready', updated > 0);
         document.body.classList.toggle('live-failed', updated === 0);
+
+        setLiveStatus(updated > 0 ? 'success' : 'error', updated > 0 ? 'Live-Daten aktiv' : 'Live-Daten nicht erreichbar', { showRetry: updated === 0 });
+        wireRetry(async () => {
+            const retryUpdated = await updateIndicesData();
+            setLiveStatus(retryUpdated > 0 ? 'success' : 'error', retryUpdated > 0 ? 'Live-Daten aktiv' : 'Live-Daten nicht erreichbar', { showRetry: retryUpdated === 0 });
+        });
     } 
     else if (currentPage.startsWith('futures')) {
         const updated = await updateCommoditiesData();
         setInterval(updateCommoditiesData, 60000);
         document.body.classList.toggle('live-ready', updated > 0);
         document.body.classList.toggle('live-failed', updated === 0);
+
+        setLiveStatus(updated > 0 ? 'success' : 'error', updated > 0 ? 'Live-Daten aktiv' : 'Live-Daten nicht erreichbar', { showRetry: updated === 0 });
+        wireRetry(async () => {
+            const retryUpdated = await updateCommoditiesData();
+            setLiveStatus(retryUpdated > 0 ? 'success' : 'error', retryUpdated > 0 ? 'Live-Daten aktiv' : 'Live-Daten nicht erreichbar', { showRetry: retryUpdated === 0 });
+        });
     }
     else if (currentPage === 'index.html' || currentPage === '') {
         // Auf der Startseite alle Daten laden (wenn dort Previews sind)
         updateCryptoData();
         updateIndicesData();
+
+        // Startseite: keine harte Success/Fail Aussage, nur Hinweis.
+        setLiveStatus('success', 'Live-Daten werden aktualisiert');
+    }
+    else {
+        // Seiten ohne Live-Daten: Indikator nicht anzeigen.
+        const el = document.getElementById('liveStatus');
+        if (el) el.classList.remove('active');
     }
 
     // Optional: Nach Timeout Fallback-Werte wieder anzeigen, für Items die nie Live-Daten bekommen.
@@ -536,5 +579,81 @@ style.textContent = `
     .loading-indicator.active {
         display: block;
     }
+    .loading-indicator.success {
+        background: rgba(34, 197, 94, 0.18);
+        border: 1px solid rgba(34, 197, 94, 0.35);
+    }
+    .loading-indicator.error {
+        background: rgba(239, 68, 68, 0.18);
+        border: 1px solid rgba(239, 68, 68, 0.35);
+    }
+    .loading-indicator .status-row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .loading-indicator .status-text {
+        white-space: nowrap;
+    }
+    .loading-indicator .retry-btn {
+        appearance: none;
+        border: 1px solid rgba(255,255,255,0.25);
+        background: rgba(255,255,255,0.08);
+        color: #fff;
+        padding: 6px 10px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 12px;
+    }
+    .loading-indicator .retry-btn:hover {
+        background: rgba(255,255,255,0.14);
+    }
 `;
 document.head.appendChild(style);
+
+function ensureLiveStatusIndicator() {
+    let el = document.getElementById('liveStatus');
+    if (el) return el;
+
+    el = document.createElement('div');
+    el.id = 'liveStatus';
+    el.className = 'loading-indicator active';
+    el.innerHTML = `
+        <div class="status-row">
+            <span class="status-text">Live-Daten werden geladen…</span>
+            <button type="button" class="retry-btn" style="display:none">Retry</button>
+        </div>
+    `;
+    document.body.appendChild(el);
+    return el;
+}
+
+function setLiveStatus(state, text, { showRetry = false } = {}) {
+    const el = ensureLiveStatusIndicator();
+    el.classList.add('active');
+    el.classList.remove('success', 'error');
+    if (state === 'success') el.classList.add('success');
+    if (state === 'error') el.classList.add('error');
+
+    const textEl = el.querySelector('.status-text');
+    if (textEl) textEl.textContent = text;
+
+    const btn = el.querySelector('.retry-btn');
+    if (btn) btn.style.display = showRetry ? 'inline-block' : 'none';
+}
+
+function wireRetry(handler) {
+    const el = ensureLiveStatusIndicator();
+    const btn = el.querySelector('.retry-btn');
+    if (!btn) return;
+
+    btn.onclick = async () => {
+        setLiveStatus('loading', 'Live-Daten werden geladen…', { showRetry: false });
+        try {
+            await handler();
+        } catch {
+            // Fehlerzustand wird vom Handler/Caller gesetzt
+        }
+    };
+}
