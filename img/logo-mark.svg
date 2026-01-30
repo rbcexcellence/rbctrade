@@ -1,30 +1,29 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="RBC Excellence Logo Mark">
   <defs>
-    <linearGradient id="g" x1="36" y1="40" x2="220" y2="216" gradientUnits="userSpaceOnUse">
+    <linearGradient id="g" x1="44" y1="44" x2="212" y2="212" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#6366F1"/>
-      <stop offset="0.55" stop-color="#8B5CF6"/>
+      <stop offset="1" stop-color="#8B5CF6"/>
+    </linearGradient>
+    <linearGradient id="a" x1="72" y1="176" x2="190" y2="84" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6366F1"/>
       <stop offset="1" stop-color="#10B981"/>
     </linearGradient>
-    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
-      <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#000000" flood-opacity="0.35"/>
-    </filter>
   </defs>
 
-  <!-- Diamond / shield base -->
-  <path filter="url(#shadow)" d="M128 18L224 72V184L128 238L32 184V72L128 18Z" fill="url(#g)"/>
+  <!-- Rounded-square container (reads well on dark navbar + as standalone icon) -->
+  <rect x="28" y="28" width="200" height="200" rx="58" fill="#0B1220"/>
+  <rect x="28" y="28" width="200" height="200" rx="58" stroke="url(#g)" stroke-width="10" opacity="0.95"/>
 
-  <!-- Inner cut to match site style -->
-  <path d="M128 40L204 84V172L128 216L52 172V84L128 40Z" fill="#0B1220" opacity="0.55"/>
-
-  <!-- Stylized "candles" -->
-  <g fill="#F1F5F9">
-    <rect x="86" y="108" width="18" height="70" rx="9" opacity="0.95"/>
-    <rect x="119" y="86" width="18" height="92" rx="9" opacity="0.95"/>
-    <rect x="152" y="116" width="18" height="62" rx="9" opacity="0.95"/>
+  <!-- Subtle bars (market / performance) -->
+  <g fill="#F1F5F9" opacity="0.92">
+    <rect x="76" y="136" width="18" height="56" rx="9"/>
+    <rect x="111" y="116" width="18" height="76" rx="9"/>
+    <rect x="146" y="92" width="18" height="100" rx="9"/>
   </g>
 
-  <!-- Upward arrow hint -->
-  <path d="M128 70C146 70 158 78 168 90" stroke="#F1F5F9" stroke-width="10" stroke-linecap="round" opacity="0.85"/>
-  <path d="M176 98L173 80L156 84" stroke="#F1F5F9" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>
+  <!-- Rising line with arrow (growth) -->
+  <path d="M74 158L110 126L132 142L180 96" stroke="url(#a)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M180 96L180 120" stroke="url(#a)" stroke-width="12" stroke-linecap="round"/>
+  <path d="M180 96L156 96" stroke="url(#a)" stroke-width="12" stroke-linecap="round"/>
 </svg>
