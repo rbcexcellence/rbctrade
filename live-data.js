@@ -236,16 +236,19 @@ function prepareBadgePlaceholders(selector) {
 
 // ==================== KRYPTO DATEN (CoinGecko API) ====================
 async function updateCryptoData() {
+    // Mix aus "Blue Chips" + sehr populären/trendenden Coins.
+    // Wichtig: CoinGecko-IDs müssen exakt stimmen.
     const cryptoIds = {
         'bitcoin': 'BTC',
         'ethereum': 'ETH',
         'solana': 'SOL',
         'ripple': 'XRP',
-        'cardano': 'ADA',
-        'polkadot': 'DOT',
-        'chainlink': 'LINK',
-        'matic-network': 'MATIC',
-        'uniswap': 'UNI'
+        'binancecoin': 'BNB',
+        'dogecoin': 'DOGE',
+        'toncoin': 'TON',
+        'tron': 'TRX',
+        'avalanche-2': 'AVAX',
+        'chainlink': 'LINK'
     };
 
     let updatedCount = 0;
