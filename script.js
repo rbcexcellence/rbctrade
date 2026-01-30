@@ -1,3 +1,26 @@
+// Canonical redirects (production): enforce HTTPS + non-www
+(() => {
+    try {
+        const host = (window.location.hostname || '').toLowerCase();
+        const isProdHost = host === 'rbc-excellence.com' || host === 'www.rbc-excellence.com';
+
+        // Avoid redirecting during local dev / other hosts.
+        if (!isProdHost) return;
+
+        const targetProtocol = 'https:';
+        const targetHost = 'rbc-excellence.com';
+
+        if (window.location.protocol !== targetProtocol || host !== targetHost) {
+            const targetUrl = `${targetProtocol}//${targetHost}${window.location.pathname}${window.location.search}${window.location.hash}`;
+            if (targetUrl !== window.location.href) {
+                window.location.replace(targetUrl);
+            }
+        }
+    } catch {
+        // noop
+    }
+})();
+
 // Mobile Menu Toggle
 const hamburger = document.querySelector('.hamburger');
 const navMenu = document.querySelector('.nav-menu');
