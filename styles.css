@@ -123,6 +123,31 @@ body.live-loading .crypto-card .crypto-price::after {
     color: var(--text-primary);
 }
 
+/* Brand logo in navbar */
+.brand-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+}
+
+.brand-logo {
+    width: 34px;
+    height: 34px;
+    display: block;
+}
+
+.brand-text {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1;
+}
+
+.brand-text span {
+    color: var(--primary-color);
+}
+
 .nav-brand span {
     color: var(--primary-color);
 }

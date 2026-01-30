@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="RBC Excellence Favicon">
+  <defs>
+    <linearGradient id="g" x1="6" y1="4" x2="58" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6366F1"/>
+      <stop offset="0.55" stop-color="#8B5CF6"/>
+      <stop offset="1" stop-color="#10B981"/>
+    </linearGradient>
+  </defs>
+
+  <path d="M32 2L56 16V48L32 62L8 48V16L32 2Z" fill="url(#g)"/>
+  <path d="M32 8L50 19V45L32 56L14 45V19L32 8Z" fill="#0B1220" opacity="0.55"/>
+
+  <g fill="#F1F5F9">
+    <rect x="22" y="28" width="5" height="20" rx="2.5" opacity="0.95"/>
+    <rect x="29.5" y="22" width="5" height="26" rx="2.5" opacity="0.95"/>
+    <rect x="37" y="30" width="5" height="18" rx="2.5" opacity="0.95"/>
+  </g>
+</svg>
