@@ -362,39 +362,35 @@ async function updateCommoditiesData() {
 // ==================== INITIALISIERUNG ====================
 function initLiveData() {
     const pathname = window.location.pathname;
-    const currentPage = pathname.split('/').filter(p => p).pop() || 'index';
-    
+    const currentPage = pathname.split('/').pop(); // Einfacher und robuster
+
     console.log('🚀 Live-Daten werden geladen...');
     console.log('📍 Seite:', currentPage);
     console.log('🌐 Protocol:', window.location.protocol);
-    
+
     // Lade Daten basierend auf der aktuellen Seite
-    if (currentPage.includes('krypto')) {
+    if (currentPage.startsWith('krypto')) {
         updateCryptoData();
-        // Aktualisiere alle 60 Sekunden
         setInterval(updateCryptoData, 60000);
     } 
-    else if (currentPage.includes('assets')) {
+    else if (currentPage.startsWith('assets')) {
         updateStockData();
-        // Aktualisiere alle 60 Sekunden
         setInterval(updateStockData, 60000);
     } 
-    else if (currentPage.includes('indices')) {
+    else if (currentPage.startsWith('indices')) {
         updateIndicesData();
-        // Aktualisiere alle 60 Sekunden
         setInterval(updateIndicesData, 60000);
     } 
-    else if (currentPage.includes('futures')) {
+    else if (currentPage.startsWith('futures')) {
         updateCommoditiesData();
-        // Aktualisiere alle 60 Sekunden
         setInterval(updateCommoditiesData, 60000);
     }
-    else if (currentPage === 'index' || currentPage === '') {
+    else if (currentPage === 'index.html' || currentPage === '') {
         // Auf der Startseite alle Daten laden (wenn dort Previews sind)
         updateCryptoData();
         updateIndicesData();
     }
-    
+
     // Zeige Hinweis wenn nicht über Server geladen
     if (window.location.protocol === 'file:') {
         console.warn('⚠️ Seite wird von Datei geladen. Für beste Ergebnisse, starte den Server mit START_SERVER.bat');
