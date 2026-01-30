@@ -206,7 +206,7 @@ async function updateStockData() {
 async function updateIndicesData() {
     const indices = {
         '^GSPC': 'S&P 500',
-        '^IXIC': 'US 100',
+        '^IXIC': 'US 100 (Nasdaq)',
         '^DJI': 'Dow Jones',
         '^GDAXI': 'DAX',
         '^FTSE': 'FTSE 100',
@@ -241,34 +241,28 @@ async function updateIndicesData() {
                         
                         console.log(`${name}: ${currentPrice.toFixed(2)} (${change.toFixed(2)}%)`);
                         
-                        // Finde die entsprechende Index-Card
-                        document.querySelectorAll('.index-card').forEach(card => {
-                            const titleElement = card.querySelector('h3');
-                            if (titleElement) {
-                                const cardTitle = titleElement.textContent;
-                                // Prüfe ob der Index-Name im Titel vorkommt
-                                if (cardTitle.includes(name)) {
-                                    // Update Wert
-                                    const valueElement = card.querySelector('.index-value');
-                                    if (valueElement && currentPrice) {
-                                        valueElement.textContent = formatPrice(currentPrice, 2);
-                                    }
-                                    
-                                    // Update Badge
-                                    const badge = card.querySelector('.badge');
-                                    if (badge) {
-                                        updateBadge(badge, change);
-                                    }
-                                    
-                                    // Update High/Low
-                                    const detailValues = card.querySelectorAll('.detail-value');
-                                    if (detailValues.length >= 2) {
-                                        if (high && high > 0) detailValues[0].textContent = formatPrice(high, 2);
-                                        if (low && low > 0) detailValues[1].textContent = formatPrice(low, 2);
-                                    }
-                                }
+                        // Finde die entsprechende Index-Card via data-symbol
+                        const card = document.querySelector(`.index-card[data-symbol="${symbol}"]`);
+                        if (card) {
+                            // Update Wert
+                            const valueElement = card.querySelector('.index-value');
+                            if (valueElement && currentPrice) {
+                                valueElement.textContent = formatPrice(currentPrice, 2);
                             }
-                        });
+                            
+                            // Update Badge
+                            const badge = card.querySelector('.badge');
+                            if (badge) {
+                                updateBadge(badge, change);
+                            }
+                            
+                            // Update High/Low
+                            const detailValues = card.querySelectorAll('.detail-value');
+                            if (detailValues.length >= 2) {
+                                if (high && high > 0) detailValues[0].textContent = formatPrice(high, 2);
+                                if (low && low > 0) detailValues[1].textContent = formatPrice(low, 2);
+                            }
+                        }
                     } else {
                         console.warn(`⚠️ Keine Daten für ${name}`);
                     }
