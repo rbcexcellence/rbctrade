@@ -47,6 +47,23 @@ body.live-loading .futures-card[data-symbol] .futures-price::after {
     font: inherit;
 }
 
+body.live-loading .crypto-card .crypto-price {
+    color: transparent !important;
+    -webkit-text-fill-color: transparent !important;
+    position: relative;
+}
+
+body.live-loading .crypto-card .crypto-price::after {
+    content: '—';
+    color: var(--text-primary, #ffffff);
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font: inherit;
+}
+
 /* Per-element placeholder (used while some cards are still fetching) */
 .live-placeholder {
     color: var(--text-secondary, rgba(255, 255, 255, 0.7)) !important;

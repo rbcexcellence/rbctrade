@@ -136,6 +136,8 @@ async function updateCryptoData() {
         'uniswap': 'UNI'
     };
 
+    let updatedCount = 0;
+
     try {
         const ids = Object.keys(cryptoIds).join(',');
         const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true`;
@@ -171,7 +173,9 @@ async function updateCryptoData() {
                 if (priceElement && crypto.usd) {
                     const newPrice = `$${formatPrice(crypto.usd)}`;
                     priceElement.textContent = newPrice;
+                    markLiveUpdated(priceElement);
                     console.log(`${ticker} Preis aktualisiert: ${newPrice}`);
+                    updatedCount++;
                 }
                 
                 // Update Prozent-Badge
@@ -197,6 +201,8 @@ async function updateCryptoData() {
     } catch (error) {
         console.error('❌ Fehler beim Laden der Krypto-Daten:', error);
     }
+
+    return updatedCount;
 }
 
 // ==================== AKTIEN DATEN (Yahoo Finance mit CORS Proxy) ====================
@@ -444,7 +450,9 @@ async function initLiveData() {
 
     // Pro-Element Platzhalter setzen (damit NICHTS Hardcoded sichtbar ist, selbst wenn nur
     // ein Teil der Requests erfolgreich ist).
-    if (currentPage.startsWith('indices')) {
+    if (currentPage.startsWith('krypto')) {
+        preparePricePlaceholders('.crypto-card .crypto-price');
+    } else if (currentPage.startsWith('indices')) {
         preparePricePlaceholders('.index-card[data-symbol] .index-value');
     } else if (currentPage.startsWith('assets') || currentPage.startsWith('futures')) {
         preparePricePlaceholders('.futures-card[data-symbol] .futures-price');
@@ -457,8 +465,10 @@ async function initLiveData() {
 
     // Lade Daten basierend auf der aktuellen Seite
     if (currentPage.startsWith('krypto')) {
-        await updateCryptoData();
+        const updated = await updateCryptoData();
         setInterval(updateCryptoData, 60000);
+        document.body.classList.toggle('live-ready', updated > 0);
+        document.body.classList.toggle('live-failed', updated === 0);
     } 
     else if (currentPage.startsWith('assets')) {
         const updated = await updateStockData();
@@ -486,7 +496,9 @@ async function initLiveData() {
 
     // Optional: Nach Timeout Fallback-Werte wieder anzeigen, für Items die nie Live-Daten bekommen.
     window.setTimeout(() => {
-        if (currentPage.startsWith('indices')) {
+        if (currentPage.startsWith('krypto')) {
+            restoreFallbacksIfStillMissing('.crypto-card .crypto-price');
+        } else if (currentPage.startsWith('indices')) {
             restoreFallbacksIfStillMissing('.index-card[data-symbol] .index-value');
         } else if (currentPage.startsWith('assets') || currentPage.startsWith('futures')) {
             restoreFallbacksIfStillMissing('.futures-card[data-symbol] .futures-price');
