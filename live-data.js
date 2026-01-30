@@ -91,6 +91,37 @@ function updateBadge(element, change) {
     element.textContent = `${isPositive ? '+' : ''}${change.toFixed(2)}%`;
 }
 
+// ==================== PLACEHOLDER / FALLBACK ====================
+const FALLBACK_RESTORE_AFTER_MS = 8000;
+
+function preparePricePlaceholders(selector) {
+    const elements = document.querySelectorAll(selector);
+    elements.forEach(el => {
+        if (!el.dataset.fallbackText) {
+            el.dataset.fallbackText = el.textContent;
+        }
+
+        el.textContent = '—';
+        el.classList.add('live-placeholder');
+        el.dataset.liveUpdated = '0';
+    });
+}
+
+function markLiveUpdated(el) {
+    if (!el) return;
+    el.dataset.liveUpdated = '1';
+    el.classList.remove('live-placeholder');
+}
+
+function restoreFallbacksIfStillMissing(selector) {
+    document.querySelectorAll(selector).forEach(el => {
+        if (el.dataset.liveUpdated === '1') return;
+        if (!el.dataset.fallbackText) return;
+        el.textContent = el.dataset.fallbackText;
+        el.classList.remove('live-placeholder');
+    });
+}
+
 // ==================== KRYPTO DATEN (CoinGecko API) ====================
 async function updateCryptoData() {
     const cryptoIds = {
@@ -201,6 +232,7 @@ async function updateStockData() {
                         const priceElement = card.querySelector('.futures-price');
                         if (priceElement && currentPrice) {
                             priceElement.textContent = `$${formatPrice(currentPrice)}`;
+                            markLiveUpdated(priceElement);
                         }
                         
                         // Update Badge
@@ -276,6 +308,7 @@ async function updateIndicesData() {
                         const valueElement = card.querySelector('.index-value');
                         if (valueElement && currentPrice) {
                             valueElement.textContent = formatPrice(currentPrice, 2);
+                            markLiveUpdated(valueElement);
                         }
                         
                         // Update Badge
@@ -358,6 +391,7 @@ async function updateCommoditiesData() {
                         const priceElement = card.querySelector('.futures-price');
                         if (priceElement) {
                             priceElement.textContent = `$${formatPrice(currentPrice)}`;
+                            markLiveUpdated(priceElement);
                         }
                         
                         // Update Badge
@@ -408,6 +442,19 @@ async function initLiveData() {
         document.body.classList.remove('live-failed');
     }
 
+    // Pro-Element Platzhalter setzen (damit NICHTS Hardcoded sichtbar ist, selbst wenn nur
+    // ein Teil der Requests erfolgreich ist).
+    if (currentPage.startsWith('indices')) {
+        preparePricePlaceholders('.index-card[data-symbol] .index-value');
+    } else if (currentPage.startsWith('assets') || currentPage.startsWith('futures')) {
+        preparePricePlaceholders('.futures-card[data-symbol] .futures-price');
+    }
+
+    // Jetzt kann die Seiten-Loading-Klasse weg – die Preise sind bereits neutralisiert.
+    if (hasLoadingClass) {
+        document.body.classList.remove('live-loading');
+    }
+
     // Lade Daten basierend auf der aktuellen Seite
     if (currentPage.startsWith('krypto')) {
         await updateCryptoData();
@@ -416,29 +463,20 @@ async function initLiveData() {
     else if (currentPage.startsWith('assets')) {
         const updated = await updateStockData();
         setInterval(updateStockData, 60000);
-        if (hasLoadingClass) {
-            document.body.classList.toggle('live-ready', updated > 0);
-            document.body.classList.toggle('live-failed', updated === 0);
-            document.body.classList.remove('live-loading');
-        }
+        document.body.classList.toggle('live-ready', updated > 0);
+        document.body.classList.toggle('live-failed', updated === 0);
     } 
     else if (currentPage.startsWith('indices')) {
         const updated = await updateIndicesData();
         setInterval(updateIndicesData, 60000);
-        if (hasLoadingClass) {
-            document.body.classList.toggle('live-ready', updated > 0);
-            document.body.classList.toggle('live-failed', updated === 0);
-            document.body.classList.remove('live-loading');
-        }
+        document.body.classList.toggle('live-ready', updated > 0);
+        document.body.classList.toggle('live-failed', updated === 0);
     } 
     else if (currentPage.startsWith('futures')) {
         const updated = await updateCommoditiesData();
         setInterval(updateCommoditiesData, 60000);
-        if (hasLoadingClass) {
-            document.body.classList.toggle('live-ready', updated > 0);
-            document.body.classList.toggle('live-failed', updated === 0);
-            document.body.classList.remove('live-loading');
-        }
+        document.body.classList.toggle('live-ready', updated > 0);
+        document.body.classList.toggle('live-failed', updated === 0);
     }
     else if (currentPage === 'index.html' || currentPage === '') {
         // Auf der Startseite alle Daten laden (wenn dort Previews sind)
@@ -446,15 +484,14 @@ async function initLiveData() {
         updateIndicesData();
     }
 
-    // Safety: falls aus irgendeinem Grund nie ein Update durchkommt, nicht ewig im Loading bleiben
-    if (hasLoadingClass) {
-        window.setTimeout(() => {
-            if (document.body.classList.contains('live-loading')) {
-                document.body.classList.remove('live-loading');
-                document.body.classList.add('live-failed');
-            }
-        }, 6000);
-    }
+    // Optional: Nach Timeout Fallback-Werte wieder anzeigen, für Items die nie Live-Daten bekommen.
+    window.setTimeout(() => {
+        if (currentPage.startsWith('indices')) {
+            restoreFallbacksIfStillMissing('.index-card[data-symbol] .index-value');
+        } else if (currentPage.startsWith('assets') || currentPage.startsWith('futures')) {
+            restoreFallbacksIfStillMissing('.futures-card[data-symbol] .futures-price');
+        }
+    }, FALLBACK_RESTORE_AFTER_MS);
 
     // Zeige Hinweis wenn nicht über Server geladen
     if (window.location.protocol === 'file:') {

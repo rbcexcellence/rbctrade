@@ -31,6 +31,7 @@ body {
 body.live-loading .index-card[data-symbol] .index-value,
 body.live-loading .futures-card[data-symbol] .futures-price {
     color: transparent !important;
+    -webkit-text-fill-color: transparent !important;
     position: relative;
 }
 
@@ -44,6 +45,12 @@ body.live-loading .futures-card[data-symbol] .futures-price::after {
     align-items: center;
     justify-content: center;
     font: inherit;
+}
+
+/* Per-element placeholder (used while some cards are still fetching) */
+.live-placeholder {
+    color: var(--text-secondary, rgba(255, 255, 255, 0.7)) !important;
+    -webkit-text-fill-color: var(--text-secondary, rgba(255, 255, 255, 0.7)) !important;
 }
 
 .container {
