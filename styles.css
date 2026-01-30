@@ -148,7 +148,7 @@ body.live-loading .crypto-card .crypto-price::after {
     color: var(--primary-color);
 }
 
-.nav-brand span {
+.nav-brand h1 span {
     color: var(--primary-color);
 }
 
