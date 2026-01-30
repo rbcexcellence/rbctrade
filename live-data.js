@@ -1,54 +1,137 @@
 // Live Data API Integration for RBC Excellence
 // Verwendet kostenlose APIs ohne API-Keys
 
-// CORS Proxy Options - Fallbacks wenn einer nicht funktioniert
+// Yahoo Finance blockt Browser-CORS. Daher brauchen wir Proxy-Fallbacks.
+// Wichtig: Öffentliche Proxies sind oft rate-limited/instabil -> wir:
+// - setzen Timeouts
+// - parsen auch text/plain Antworten robust
+// - parallelisieren Requests mit Concurrency-Limit
 const CORS_PROXIES = [
-    'https://corsproxy.io/?',
-    'https://api.allorigins.win/raw?url=',
-    'https://cors-anywhere.herokuapp.com/'
+    { name: 'allorigins-raw', type: 'raw', base: 'https://api.allorigins.win/raw?url=' },
+    // r.jina.ai ist kein klassischer CORS-Proxy, liefert aber Inhalte serverseitig (text/plain)
+    // und ist für JSON-Endpoints wie Yahoo meist zuverlässig.
+    { name: 'jina', type: 'jina', base: 'https://r.jina.ai/' },
+    { name: 'allorigins-get', type: 'allorigins-get', base: 'https://api.allorigins.win/get?url=' },
+    // Fallbacks (häufig 403/limitiert, daher weiter hinten)
+    { name: 'corsproxy', type: 'raw', base: 'https://corsproxy.io/?' },
+    { name: 'cors-anywhere', type: 'path', base: 'https://cors-anywhere.herokuapp.com/' }
 ];
 
 let currentProxyIndex = 0;
 
-function getCorsProxy() {
-    return CORS_PROXIES[currentProxyIndex];
-}
+const PROXY_FETCH_TIMEOUT_MS = 4500;
+const SYMBOL_FETCH_CONCURRENCY = 4;
 
-function buildProxyUrl(proxyBase, targetUrl) {
-    // Proxies mit Query-Parameter erwarten die Ziel-URL im Query (oft URL-encoded)
-    if (proxyBase.includes('?') || proxyBase.includes('url=')) {
-        return proxyBase + encodeURIComponent(targetUrl);
+function buildProxyUrl(proxy, targetUrl) {
+    if (proxy.type === 'jina') {
+        // r.jina.ai erwartet die Ziel-URL als Path-Suffix (inkl. Protocol)
+        // Beispiel: https://r.jina.ai/https://query1.finance.yahoo.com/...
+        return proxy.base + targetUrl;
     }
 
-    // Proxies als Path-Prefix (z.B. cors-anywhere) erwarten die rohe URL
-    return proxyBase + targetUrl;
+    // Proxies mit Query-Parameter erwarten die Ziel-URL URL-encoded
+    if (proxy.type === 'raw' || proxy.type === 'allorigins-get' || proxy.base.includes('?') || proxy.base.includes('url=')) {
+        return proxy.base + encodeURIComponent(targetUrl);
+    }
+
+    // Proxies als Path-Prefix erwarten die rohe URL
+    return proxy.base + targetUrl;
+}
+
+function extractJsonFromText(text) {
+    if (!text) throw new Error('Empty response body');
+    const firstBrace = text.indexOf('{');
+    const lastBrace = text.lastIndexOf('}');
+    if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+        throw new Error('No JSON object found in response');
+    }
+    const jsonText = text.slice(firstBrace, lastBrace + 1);
+    return JSON.parse(jsonText);
+}
+
+async function readJsonResponse(proxy, response) {
+    if (proxy.type === 'allorigins-get') {
+        const wrapper = await response.json();
+        if (!wrapper || typeof wrapper.contents !== 'string') {
+            throw new Error('Unexpected allorigins response');
+        }
+        return extractJsonFromText(wrapper.contents);
+    }
+
+    // Best effort: try response.json(); fall back to text parsing.
+    try {
+        return await response.json();
+    } catch {
+        const text = await response.text();
+        return extractJsonFromText(text);
+    }
+}
+
+async function fetchWithTimeout(url, timeoutMs) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        return await fetch(url, { signal: controller.signal });
+    } finally {
+        clearTimeout(timeoutId);
+    }
 }
 
 async function fetchJsonWithCorsFallback(targetUrl) {
-    let lastError;
-
+    const startIndex = currentProxyIndex;
+    const proxiesInOrder = [];
     for (let offset = 0; offset < CORS_PROXIES.length; offset++) {
-        const proxyIndex = (currentProxyIndex + offset) % CORS_PROXIES.length;
-        const proxyBase = CORS_PROXIES[proxyIndex];
-        const proxyUrl = buildProxyUrl(proxyBase, targetUrl);
-
-        try {
-            const response = await fetch(proxyUrl);
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status} ${response.statusText}`);
-            }
-
-            const data = await response.json();
-            // Merke dir den funktionierenden Proxy für die nächsten Requests
-            currentProxyIndex = proxyIndex;
-            return data;
-        } catch (error) {
-            lastError = error;
-            console.warn(`⚠️ Proxy fehlgeschlagen (${proxyBase}):`, error?.message || error);
-        }
+        proxiesInOrder.push({ proxy: CORS_PROXIES[(startIndex + offset) % CORS_PROXIES.length], index: (startIndex + offset) % CORS_PROXIES.length });
     }
 
+    const attempts = proxiesInOrder.map(({ proxy, index }) => (async () => {
+        const proxyUrl = buildProxyUrl(proxy, targetUrl);
+        const response = await fetchWithTimeout(proxyUrl, PROXY_FETCH_TIMEOUT_MS);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status} ${response.statusText}`);
+        }
+
+        const data = await readJsonResponse(proxy, response);
+        currentProxyIndex = index;
+        return data;
+    })().catch((error) => {
+        console.warn(`⚠️ Proxy fehlgeschlagen (${proxy.name}):`, error?.message || error);
+        throw error;
+    }));
+
+    if (typeof Promise.any === 'function') {
+        return Promise.any(attempts);
+    }
+
+    // Fallback für ältere Browser: sequential
+    let lastError;
+    for (const attempt of attempts) {
+        try {
+            return await attempt;
+        } catch (error) {
+            lastError = error;
+        }
+    }
     throw lastError || new Error('Alle CORS-Proxies sind fehlgeschlagen');
+}
+
+async function mapWithConcurrency(items, concurrency, mapper) {
+    const results = new Array(items.length);
+    let nextIndex = 0;
+
+    const workers = new Array(Math.min(concurrency, items.length)).fill(0).map(async () => {
+        while (nextIndex < items.length) {
+            const current = nextIndex++;
+            try {
+                results[current] = await mapper(items[current], current);
+            } catch {
+                results[current] = 0;
+            }
+        }
+    });
+
+    await Promise.all(workers);
+    return results;
 }
 
 // Utility Funktionen
@@ -250,55 +333,48 @@ async function updateStockData() {
     let updatedCount = 0;
 
     try {
-        for (const ticker of stocks) {
+        const results = await mapWithConcurrency(stocks, SYMBOL_FETCH_CONCURRENCY, async (ticker) => {
             try {
                 const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1d`;
                 const data = await fetchJsonWithCorsFallback(yahooUrl);
                 const result = data?.chart?.result?.[0];
-                    
-                if (result && result.meta) {
-                    const currentPrice = result.meta.regularMarketPrice;
-                    const previousClose = result.meta.chartPreviousClose || result.meta.previousClose;
-                    const change = ((currentPrice - previousClose) / previousClose) * 100;
-                    
-                    console.log(`${ticker}: $${currentPrice.toFixed(2)} (${change.toFixed(2)}%)`);
-                    
-                    // Finde die entsprechende Card via data-symbol
-                    const card = document.querySelector(`.futures-card[data-symbol="${ticker}"]`);
-                    if (card) {
-                        // Update Preis
-                        const priceElement = card.querySelector('.futures-price');
-                        if (priceElement && currentPrice) {
-                            priceElement.textContent = `$${formatPrice(currentPrice)}`;
-                            markLiveUpdated(priceElement);
-                        }
-                        
-                        // Update Badge
-                        const badge = card.querySelector('.badge');
-                        if (badge) {
-                            updateBadge(badge, change);
-                                markLiveUpdated(badge);
-                        }
-                        
-                        // Update Market Cap wenn vorhanden
-                        const statValues = card.querySelectorAll('.stat-value');
-                        if (result.meta.marketCap && statValues.length > 0) {
-                            statValues[0].textContent = formatMarketCap(result.meta.marketCap);
-                                markLiveUpdated(statValues[0]);
-                        }
 
-                        updatedCount++;
-                    }
+                if (!result?.meta) return 0;
+
+                const currentPrice = result.meta.regularMarketPrice;
+                const previousClose = result.meta.chartPreviousClose || result.meta.previousClose;
+                const change = previousClose ? ((currentPrice - previousClose) / previousClose) * 100 : 0;
+
+                // Finde die entsprechende Card via data-symbol
+                const card = document.querySelector(`.futures-card[data-symbol="${ticker}"]`);
+                if (!card) return 0;
+
+                const priceElement = card.querySelector('.futures-price');
+                if (priceElement && currentPrice) {
+                    priceElement.textContent = `$${formatPrice(currentPrice)}`;
+                    markLiveUpdated(priceElement);
                 }
-                
-                // Pause zwischen Requests
-                await new Promise(resolve => setTimeout(resolve, 300));
-                
+
+                const badge = card.querySelector('.badge');
+                if (badge && previousClose) {
+                    updateBadge(badge, change);
+                    markLiveUpdated(badge);
+                }
+
+                const statValues = card.querySelectorAll('.stat-value');
+                if (result.meta.marketCap && statValues.length > 0) {
+                    statValues[0].textContent = formatMarketCap(result.meta.marketCap);
+                    markLiveUpdated(statValues[0]);
+                }
+
+                return 1;
             } catch (error) {
-                console.warn(`Fehler bei ${ticker}:`, error.message);
+                console.warn(`Fehler bei ${ticker}:`, error?.message || error);
+                return 0;
             }
-        }
-        
+        });
+
+        updatedCount = results.reduce((sum, v) => sum + (v || 0), 0);
         console.log('✅ Aktien-Daten aktualisiert');
     } catch (error) {
         console.error('❌ Fehler beim Laden der Aktien-Daten:', error);
@@ -326,64 +402,55 @@ async function updateIndicesData() {
     let updatedCount = 0;
 
     try {
-        for (const [symbol, name] of Object.entries(indices)) {
+        const entries = Object.entries(indices);
+        const results = await mapWithConcurrency(entries, SYMBOL_FETCH_CONCURRENCY, async ([symbol, name]) => {
             try {
                 const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
                 const data = await fetchJsonWithCorsFallback(yahooUrl);
                 const result = data?.chart?.result?.[0];
-                    
-                if (result && result.meta) {
-                    const currentPrice = result.meta.regularMarketPrice;
-                    const previousClose = result.meta.chartPreviousClose || result.meta.previousClose;
-                    const change = ((currentPrice - previousClose) / previousClose) * 100;
-                    const high = result.meta.regularMarketDayHigh;
-                    const low = result.meta.regularMarketDayLow;
-                    
-                    console.log(`${name}: ${currentPrice.toFixed(2)} (${change.toFixed(2)}%)`);
-                    
-                    // Finde die entsprechende Index-Card via data-symbol
-                    const card = document.querySelector(`.index-card[data-symbol="${symbol}"]`);
-                    if (card) {
-                        // Update Wert
-                        const valueElement = card.querySelector('.index-value');
-                        if (valueElement && currentPrice) {
-                            valueElement.textContent = formatPrice(currentPrice, 2);
-                            markLiveUpdated(valueElement);
-                        }
-                        
-                        // Update Badge
-                        const badge = card.querySelector('.badge');
-                        if (badge) {
-                            updateBadge(badge, change);
-                                markLiveUpdated(badge);
-                        }
-                        
-                        // Update High/Low
-                        const detailValues = card.querySelectorAll('.detail-value');
-                        if (detailValues.length >= 2) {
-                                if (high && high > 0) {
-                                    detailValues[0].textContent = formatPrice(high, 2);
-                                    markLiveUpdated(detailValues[0]);
-                                }
-                                if (low && low > 0) {
-                                    detailValues[1].textContent = formatPrice(low, 2);
-                                    markLiveUpdated(detailValues[1]);
-                                }
-                        }
+                if (!result?.meta) return 0;
 
-                        updatedCount++;
-                    }
-                } else {
-                    console.warn(`⚠️ Keine Daten für ${name}`);
+                const currentPrice = result.meta.regularMarketPrice;
+                const previousClose = result.meta.chartPreviousClose || result.meta.previousClose;
+                const change = previousClose ? ((currentPrice - previousClose) / previousClose) * 100 : 0;
+                const high = result.meta.regularMarketDayHigh;
+                const low = result.meta.regularMarketDayLow;
+
+                const card = document.querySelector(`.index-card[data-symbol="${symbol}"]`);
+                if (!card) return 0;
+
+                const valueElement = card.querySelector('.index-value');
+                if (valueElement && currentPrice) {
+                    valueElement.textContent = formatPrice(currentPrice, 2);
+                    markLiveUpdated(valueElement);
                 }
-                
-                await new Promise(resolve => setTimeout(resolve, 300));
-                
+
+                const badge = card.querySelector('.badge');
+                if (badge && previousClose) {
+                    updateBadge(badge, change);
+                    markLiveUpdated(badge);
+                }
+
+                const detailValues = card.querySelectorAll('.detail-value');
+                if (detailValues.length >= 2) {
+                    if (high && high > 0) {
+                        detailValues[0].textContent = formatPrice(high, 2);
+                        markLiveUpdated(detailValues[0]);
+                    }
+                    if (low && low > 0) {
+                        detailValues[1].textContent = formatPrice(low, 2);
+                        markLiveUpdated(detailValues[1]);
+                    }
+                }
+
+                return 1;
             } catch (error) {
-                console.warn(`Fehler bei ${name}:`, error.message);
+                console.warn(`Fehler bei ${name}:`, error?.message || error);
+                return 0;
             }
-        }
-        
+        });
+
+        updatedCount = results.reduce((sum, v) => sum + (v || 0), 0);
         console.log('✅ Indices-Daten aktualisiert');
     } catch (error) {
         console.error('❌ Fehler beim Laden der Indices-Daten:', error);
@@ -416,58 +483,55 @@ async function updateCommoditiesData() {
     let updatedCount = 0;
 
     try {
-        for (const [symbol, name] of Object.entries(commodities)) {
+        const entries = Object.entries(commodities);
+        const results = await mapWithConcurrency(entries, SYMBOL_FETCH_CONCURRENCY, async ([symbol, name]) => {
             try {
                 const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
                 const data = await fetchJsonWithCorsFallback(yahooUrl);
                 const result = data?.chart?.result?.[0];
-                    
-                if (result && result.meta) {
-                    const currentPrice = result.meta.regularMarketPrice;
-                    const previousClose = result.meta.chartPreviousClose || result.meta.previousClose;
-                    const change = ((currentPrice - previousClose) / previousClose) * 100;
-                    const high = result.meta.regularMarketDayHigh;
-                    const low = result.meta.regularMarketDayLow;
-                    
-                    console.log(`${name}: $${currentPrice.toFixed(2)} (${change.toFixed(2)}%)`);
-                    
-                    // Finde die entsprechende Futures-Card via data-symbol
-                    const card = document.querySelector(`.futures-card[data-symbol="${symbol}"]`);
-                    if (card) {
-                        // Update Preis
-                        const priceElement = card.querySelector('.futures-price');
-                        if (priceElement) {
-                            priceElement.textContent = `$${formatPrice(currentPrice)}`;
-                            markLiveUpdated(priceElement);
-                        }
-                        
-                        // Update Badge
-                        const badge = card.querySelector('.badge');
-                        if (badge) {
-                            updateBadge(badge, change);
-                                markLiveUpdated(badge);
-                        }
-                        
-                        // Update High/Low in stats
-                        const statValues = card.querySelectorAll('.stat-value');
-                        if (statValues.length >= 2 && high && low) {
-                            statValues[0].textContent = `$${formatPrice(high)}`;
-                            statValues[1].textContent = `$${formatPrice(low)}`;
-                                markLiveUpdated(statValues[0]);
-                                markLiveUpdated(statValues[1]);
-                        }
+                if (!result?.meta) return 0;
 
-                        updatedCount++;
+                const currentPrice = result.meta.regularMarketPrice;
+                const previousClose = result.meta.chartPreviousClose || result.meta.previousClose;
+                const change = previousClose ? ((currentPrice - previousClose) / previousClose) * 100 : 0;
+                const high = result.meta.regularMarketDayHigh;
+                const low = result.meta.regularMarketDayLow;
+
+                const card = document.querySelector(`.futures-card[data-symbol="${symbol}"]`);
+                if (!card) return 0;
+
+                const priceElement = card.querySelector('.futures-price');
+                if (priceElement && currentPrice) {
+                    priceElement.textContent = `$${formatPrice(currentPrice)}`;
+                    markLiveUpdated(priceElement);
+                }
+
+                const badge = card.querySelector('.badge');
+                if (badge && previousClose) {
+                    updateBadge(badge, change);
+                    markLiveUpdated(badge);
+                }
+
+                const statValues = card.querySelectorAll('.stat-value');
+                if (statValues.length >= 2) {
+                    if (high) {
+                        statValues[0].textContent = `$${formatPrice(high)}`;
+                        markLiveUpdated(statValues[0]);
+                    }
+                    if (low) {
+                        statValues[1].textContent = `$${formatPrice(low)}`;
+                        markLiveUpdated(statValues[1]);
                     }
                 }
-                
-                await new Promise(resolve => setTimeout(resolve, 300));
-                
+
+                return 1;
             } catch (error) {
-                console.warn(`Fehler bei ${name}:`, error.message);
+                console.warn(`Fehler bei ${name}:`, error?.message || error);
+                return 0;
             }
-        }
-        
+        });
+
+        updatedCount = results.reduce((sum, v) => sum + (v || 0), 0);
         console.log('✅ Rohstoff-Daten aktualisiert');
     } catch (error) {
         console.error('❌ Fehler beim Laden der Rohstoff-Daten:', error);
