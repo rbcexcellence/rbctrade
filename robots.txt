@@ -7,7 +7,7 @@ Disallow: /*.php$
 Allow: /
 
 # Sitemap
-Sitemap: https://www.rbc-excellence.com/sitemap.xml
+Sitemap: https://rbc-excellence.com/sitemap.xml
 
 # Crawl-delay (optional)
 Crawl-delay: 1
