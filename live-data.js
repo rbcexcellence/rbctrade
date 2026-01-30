@@ -162,29 +162,27 @@ async function updateStockData() {
                         
                         console.log(`${ticker}: $${currentPrice.toFixed(2)} (${change.toFixed(2)}%)`);
                         
-                        // Finde die entsprechende Card
-                        document.querySelectorAll('.futures-card').forEach(card => {
-                            const tickerElement = card.querySelector('.futures-unit');
-                            if (tickerElement && tickerElement.textContent === ticker) {
-                                // Update Preis
-                                const priceElement = card.querySelector('.futures-price');
-                                if (priceElement && currentPrice) {
-                                    priceElement.textContent = `$${formatPrice(currentPrice)}`;
-                                }
-                                
-                                // Update Badge
-                                const badge = card.querySelector('.badge');
-                                if (badge) {
-                                    updateBadge(badge, change);
-                                }
-                                
-                                // Update Market Cap wenn vorhanden
-                                const statValues = card.querySelectorAll('.stat-value');
-                                if (result.meta.marketCap && statValues.length > 0) {
-                                    statValues[0].textContent = formatMarketCap(result.meta.marketCap);
-                                }
+                        // Finde die entsprechende Card via data-symbol
+                        const card = document.querySelector(`.futures-card[data-symbol="${ticker}"]`);
+                        if (card) {
+                            // Update Preis
+                            const priceElement = card.querySelector('.futures-price');
+                            if (priceElement && currentPrice) {
+                                priceElement.textContent = `$${formatPrice(currentPrice)}`;
                             }
-                        });
+                            
+                            // Update Badge
+                            const badge = card.querySelector('.badge');
+                            if (badge) {
+                                updateBadge(badge, change);
+                            }
+                            
+                            // Update Market Cap wenn vorhanden
+                            const statValues = card.querySelectorAll('.stat-value');
+                            if (result.meta.marketCap && statValues.length > 0) {
+                                statValues[0].textContent = formatMarketCap(result.meta.marketCap);
+                            }
+                        }
                     }
                 }
                 
@@ -323,34 +321,28 @@ async function updateCommoditiesData() {
                         
                         console.log(`${name}: $${currentPrice.toFixed(2)} (${change.toFixed(2)}%)`);
                         
-                        // Finde die entsprechende Futures-Card
-                        document.querySelectorAll('.futures-card').forEach(card => {
-                            const titleElement = card.querySelector('h3');
-                            if (titleElement) {
-                                const cardTitle = titleElement.textContent;
-                                // Prüfe ob der Name im Titel vorkommt (z.B. "Gold" in "Gold (XAU/USD)")
-                                if (cardTitle.includes(name)) {
-                                    // Update Preis
-                                    const priceElement = card.querySelector('.futures-price');
-                                    if (priceElement) {
-                                        priceElement.textContent = `$${formatPrice(currentPrice)}`;
-                                    }
-                                    
-                                    // Update Badge
-                                    const badge = card.querySelector('.badge');
-                                    if (badge) {
-                                        updateBadge(badge, change);
-                                    }
-                                    
-                                    // Update High/Low in stats
-                                    const statValues = card.querySelectorAll('.stat-value');
-                                    if (statValues.length >= 2 && high && low) {
-                                        statValues[0].textContent = `$${formatPrice(high)}`;
-                                        statValues[1].textContent = `$${formatPrice(low)}`;
-                                    }
-                                }
+                        // Finde die entsprechende Futures-Card via data-symbol
+                        const card = document.querySelector(`.futures-card[data-symbol="${symbol}"]`);
+                        if (card) {
+                            // Update Preis
+                            const priceElement = card.querySelector('.futures-price');
+                            if (priceElement) {
+                                priceElement.textContent = `$${formatPrice(currentPrice)}`;
                             }
-                        });
+                            
+                            // Update Badge
+                            const badge = card.querySelector('.badge');
+                            if (badge) {
+                                updateBadge(badge, change);
+                            }
+                            
+                            // Update High/Low in stats
+                            const statValues = card.querySelectorAll('.stat-value');
+                            if (statValues.length >= 2 && high && low) {
+                                statValues[0].textContent = `$${formatPrice(high)}`;
+                                statValues[1].textContent = `$${formatPrice(low)}`;
+                            }
+                        }
                     }
                 }
                 
