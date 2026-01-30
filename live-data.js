@@ -14,6 +14,43 @@ function getCorsProxy() {
     return CORS_PROXIES[currentProxyIndex];
 }
 
+function buildProxyUrl(proxyBase, targetUrl) {
+    // Proxies mit Query-Parameter erwarten die Ziel-URL im Query (oft URL-encoded)
+    if (proxyBase.includes('?') || proxyBase.includes('url=')) {
+        return proxyBase + encodeURIComponent(targetUrl);
+    }
+
+    // Proxies als Path-Prefix (z.B. cors-anywhere) erwarten die rohe URL
+    return proxyBase + targetUrl;
+}
+
+async function fetchJsonWithCorsFallback(targetUrl) {
+    let lastError;
+
+    for (let offset = 0; offset < CORS_PROXIES.length; offset++) {
+        const proxyIndex = (currentProxyIndex + offset) % CORS_PROXIES.length;
+        const proxyBase = CORS_PROXIES[proxyIndex];
+        const proxyUrl = buildProxyUrl(proxyBase, targetUrl);
+
+        try {
+            const response = await fetch(proxyUrl);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status} ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            // Merke dir den funktionierenden Proxy für die nächsten Requests
+            currentProxyIndex = proxyIndex;
+            return data;
+        } catch (error) {
+            lastError = error;
+            console.warn(`⚠️ Proxy fehlgeschlagen (${proxyBase}):`, error?.message || error);
+        }
+    }
+
+    throw lastError || new Error('Alle CORS-Proxies sind fehlgeschlagen');
+}
+
 // Utility Funktionen
 function formatPrice(price, decimals = 2) {
     if (!price || isNaN(price)) return '0.00';
@@ -142,46 +179,38 @@ async function updateStockData() {
     console.log('Lade Aktien-Daten...');
     
     try {
-        const corsProxy = getCorsProxy();
-        
         for (const ticker of stocks) {
             try {
                 const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1d`;
-                const proxyUrl = corsProxy + encodeURIComponent(yahooUrl);
-                
-                const response = await fetch(proxyUrl);
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    const result = data?.chart?.result?.[0];
+                const data = await fetchJsonWithCorsFallback(yahooUrl);
+                const result = data?.chart?.result?.[0];
                     
-                    if (result && result.meta) {
-                        const currentPrice = result.meta.regularMarketPrice;
-                        const previousClose = result.meta.chartPreviousClose || result.meta.previousClose;
-                        const change = ((currentPrice - previousClose) / previousClose) * 100;
+                if (result && result.meta) {
+                    const currentPrice = result.meta.regularMarketPrice;
+                    const previousClose = result.meta.chartPreviousClose || result.meta.previousClose;
+                    const change = ((currentPrice - previousClose) / previousClose) * 100;
+                    
+                    console.log(`${ticker}: $${currentPrice.toFixed(2)} (${change.toFixed(2)}%)`);
+                    
+                    // Finde die entsprechende Card via data-symbol
+                    const card = document.querySelector(`.futures-card[data-symbol="${ticker}"]`);
+                    if (card) {
+                        // Update Preis
+                        const priceElement = card.querySelector('.futures-price');
+                        if (priceElement && currentPrice) {
+                            priceElement.textContent = `$${formatPrice(currentPrice)}`;
+                        }
                         
-                        console.log(`${ticker}: $${currentPrice.toFixed(2)} (${change.toFixed(2)}%)`);
+                        // Update Badge
+                        const badge = card.querySelector('.badge');
+                        if (badge) {
+                            updateBadge(badge, change);
+                        }
                         
-                        // Finde die entsprechende Card via data-symbol
-                        const card = document.querySelector(`.futures-card[data-symbol="${ticker}"]`);
-                        if (card) {
-                            // Update Preis
-                            const priceElement = card.querySelector('.futures-price');
-                            if (priceElement && currentPrice) {
-                                priceElement.textContent = `$${formatPrice(currentPrice)}`;
-                            }
-                            
-                            // Update Badge
-                            const badge = card.querySelector('.badge');
-                            if (badge) {
-                                updateBadge(badge, change);
-                            }
-                            
-                            // Update Market Cap wenn vorhanden
-                            const statValues = card.querySelectorAll('.stat-value');
-                            if (result.meta.marketCap && statValues.length > 0) {
-                                statValues[0].textContent = formatMarketCap(result.meta.marketCap);
-                            }
+                        // Update Market Cap wenn vorhanden
+                        const statValues = card.querySelectorAll('.stat-value');
+                        if (result.meta.marketCap && statValues.length > 0) {
+                            statValues[0].textContent = formatMarketCap(result.meta.marketCap);
                         }
                     }
                 }
@@ -217,53 +246,45 @@ async function updateIndicesData() {
     console.log('Lade Indices-Daten...');
     
     try {
-        const corsProxy = getCorsProxy();
-        
         for (const [symbol, name] of Object.entries(indices)) {
             try {
                 const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
-                const proxyUrl = corsProxy + encodeURIComponent(yahooUrl);
-                
-                const response = await fetch(proxyUrl);
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    const result = data?.chart?.result?.[0];
+                const data = await fetchJsonWithCorsFallback(yahooUrl);
+                const result = data?.chart?.result?.[0];
                     
-                    if (result && result.meta) {
-                        const currentPrice = result.meta.regularMarketPrice;
-                        const previousClose = result.meta.chartPreviousClose || result.meta.previousClose;
-                        const change = ((currentPrice - previousClose) / previousClose) * 100;
-                        const high = result.meta.regularMarketDayHigh;
-                        const low = result.meta.regularMarketDayLow;
-                        
-                        console.log(`${name}: ${currentPrice.toFixed(2)} (${change.toFixed(2)}%)`);
-                        
-                        // Finde die entsprechende Index-Card via data-symbol
-                        const card = document.querySelector(`.index-card[data-symbol="${symbol}"]`);
-                        if (card) {
-                            // Update Wert
-                            const valueElement = card.querySelector('.index-value');
-                            if (valueElement && currentPrice) {
-                                valueElement.textContent = formatPrice(currentPrice, 2);
-                            }
-                            
-                            // Update Badge
-                            const badge = card.querySelector('.badge');
-                            if (badge) {
-                                updateBadge(badge, change);
-                            }
-                            
-                            // Update High/Low
-                            const detailValues = card.querySelectorAll('.detail-value');
-                            if (detailValues.length >= 2) {
-                                if (high && high > 0) detailValues[0].textContent = formatPrice(high, 2);
-                                if (low && low > 0) detailValues[1].textContent = formatPrice(low, 2);
-                            }
+                if (result && result.meta) {
+                    const currentPrice = result.meta.regularMarketPrice;
+                    const previousClose = result.meta.chartPreviousClose || result.meta.previousClose;
+                    const change = ((currentPrice - previousClose) / previousClose) * 100;
+                    const high = result.meta.regularMarketDayHigh;
+                    const low = result.meta.regularMarketDayLow;
+                    
+                    console.log(`${name}: ${currentPrice.toFixed(2)} (${change.toFixed(2)}%)`);
+                    
+                    // Finde die entsprechende Index-Card via data-symbol
+                    const card = document.querySelector(`.index-card[data-symbol="${symbol}"]`);
+                    if (card) {
+                        // Update Wert
+                        const valueElement = card.querySelector('.index-value');
+                        if (valueElement && currentPrice) {
+                            valueElement.textContent = formatPrice(currentPrice, 2);
                         }
-                    } else {
-                        console.warn(`⚠️ Keine Daten für ${name}`);
+                        
+                        // Update Badge
+                        const badge = card.querySelector('.badge');
+                        if (badge) {
+                            updateBadge(badge, change);
+                        }
+                        
+                        // Update High/Low
+                        const detailValues = card.querySelectorAll('.detail-value');
+                        if (detailValues.length >= 2) {
+                            if (high && high > 0) detailValues[0].textContent = formatPrice(high, 2);
+                            if (low && low > 0) detailValues[1].textContent = formatPrice(low, 2);
+                        }
                     }
+                } else {
+                    console.warn(`⚠️ Keine Daten für ${name}`);
                 }
                 
                 await new Promise(resolve => setTimeout(resolve, 300));
@@ -301,47 +322,41 @@ async function updateCommoditiesData() {
     console.log('Lade Rohstoff-Daten...');
 
     try {
-        const corsProxy = 'https://api.allorigins.win/raw?url=';
-        
         for (const [symbol, name] of Object.entries(commodities)) {
             try {
                 const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
-                const response = await fetch(corsProxy + encodeURIComponent(yahooUrl));
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    const result = data?.chart?.result?.[0];
+                const data = await fetchJsonWithCorsFallback(yahooUrl);
+                const result = data?.chart?.result?.[0];
                     
-                    if (result && result.meta) {
-                        const currentPrice = result.meta.regularMarketPrice;
-                        const previousClose = result.meta.chartPreviousClose || result.meta.previousClose;
-                        const change = ((currentPrice - previousClose) / previousClose) * 100;
-                        const high = result.meta.regularMarketDayHigh;
-                        const low = result.meta.regularMarketDayLow;
+                if (result && result.meta) {
+                    const currentPrice = result.meta.regularMarketPrice;
+                    const previousClose = result.meta.chartPreviousClose || result.meta.previousClose;
+                    const change = ((currentPrice - previousClose) / previousClose) * 100;
+                    const high = result.meta.regularMarketDayHigh;
+                    const low = result.meta.regularMarketDayLow;
+                    
+                    console.log(`${name}: $${currentPrice.toFixed(2)} (${change.toFixed(2)}%)`);
+                    
+                    // Finde die entsprechende Futures-Card via data-symbol
+                    const card = document.querySelector(`.futures-card[data-symbol="${symbol}"]`);
+                    if (card) {
+                        // Update Preis
+                        const priceElement = card.querySelector('.futures-price');
+                        if (priceElement) {
+                            priceElement.textContent = `$${formatPrice(currentPrice)}`;
+                        }
                         
-                        console.log(`${name}: $${currentPrice.toFixed(2)} (${change.toFixed(2)}%)`);
+                        // Update Badge
+                        const badge = card.querySelector('.badge');
+                        if (badge) {
+                            updateBadge(badge, change);
+                        }
                         
-                        // Finde die entsprechende Futures-Card via data-symbol
-                        const card = document.querySelector(`.futures-card[data-symbol="${symbol}"]`);
-                        if (card) {
-                            // Update Preis
-                            const priceElement = card.querySelector('.futures-price');
-                            if (priceElement) {
-                                priceElement.textContent = `$${formatPrice(currentPrice)}`;
-                            }
-                            
-                            // Update Badge
-                            const badge = card.querySelector('.badge');
-                            if (badge) {
-                                updateBadge(badge, change);
-                            }
-                            
-                            // Update High/Low in stats
-                            const statValues = card.querySelectorAll('.stat-value');
-                            if (statValues.length >= 2 && high && low) {
-                                statValues[0].textContent = `$${formatPrice(high)}`;
-                                statValues[1].textContent = `$${formatPrice(low)}`;
-                            }
+                        // Update High/Low in stats
+                        const statValues = card.querySelectorAll('.stat-value');
+                        if (statValues.length >= 2 && high && low) {
+                            statValues[0].textContent = `$${formatPrice(high)}`;
+                            statValues[1].textContent = `$${formatPrice(low)}`;
                         }
                     }
                 }

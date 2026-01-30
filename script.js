@@ -91,39 +91,8 @@ document.querySelectorAll('.index-card, .tipp-card, .ressource-card, .stat-card'
     observer.observe(card);
 });
 
-// Dynamic Index Price Updates (Simulation)
-function updateIndexPrices() {
-    const indexValues = document.querySelectorAll('.index-value');
-    const badges = document.querySelectorAll('.index-card .badge');
-    
-    indexValues.forEach((value, index) => {
-        const currentValue = parseFloat(value.textContent.replace('$', '').replace(',', ''));
-        const change = (Math.random() - 0.5) * 50; // Random change between -25 and +25
-        const newValue = (currentValue + change).toFixed(2);
-        
-        // Animate value change
-        value.style.transition = 'color 0.3s';
-        value.textContent = `$${parseFloat(newValue).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-    });
-    
-    badges.forEach(badge => {
-        const currentChange = parseFloat(badge.textContent.replace('%', ''));
-        const newChange = (currentChange + (Math.random() - 0.5) * 2).toFixed(1);
-        
-        if (newChange > 0) {
-            badge.classList.remove('negative');
-            badge.classList.add('positive');
-            badge.textContent = `+${newChange}%`;
-        } else {
-            badge.classList.remove('positive');
-            badge.classList.add('negative');
-            badge.textContent = `${newChange}%`;
-        }
-    });
-}
-
-// Update prices every 10 seconds (simulation)
-setInterval(updateIndexPrices, 10000);
+// NOTE: Früher gab es hier eine Preis-Simulation für Indices.
+// Diese überschreibt Live-Daten aus live-data.js und ist deshalb entfernt.
 
 // Add parallax effect to hero
 window.addEventListener('scroll', () => {
