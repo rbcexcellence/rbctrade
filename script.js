@@ -75,16 +75,14 @@ window.addEventListener('scroll', () => {
 // Contact Form Handler
 const kontaktForm = document.querySelector('.kontakt-form');
 if (kontaktForm) {
-    kontaktForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        
-        const name = kontaktForm.querySelector('input[type="text"]').value;
-        const email = kontaktForm.querySelector('input[type="email"]').value;
-        const message = kontaktForm.querySelector('textarea').value;
-        
-        // Simulate form submission
-        alert(`Vielen Dank ${name}! Deine Nachricht wurde gesendet. Wir melden uns bald bei dir.`);
-        kontaktForm.reset();
+    kontaktForm.addEventListener('submit', () => {
+        // Allow the browser to submit the form normally.
+        // Small UX improvement: prevent double submits.
+        const submitBtn = kontaktForm.querySelector('button[type="submit"]');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Wird gesendet…';
+        }
     });
 }
 
