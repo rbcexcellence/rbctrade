@@ -27,6 +27,25 @@ body {
     overflow-x: hidden;
 }
 
+/* Prevent "hardcoded" price flash: hide values until live-data.js loads */
+body.live-loading .index-card[data-symbol] .index-value,
+body.live-loading .futures-card[data-symbol] .futures-price {
+    color: transparent !important;
+    position: relative;
+}
+
+body.live-loading .index-card[data-symbol] .index-value::after,
+body.live-loading .futures-card[data-symbol] .futures-price::after {
+    content: '—';
+    color: var(--text-primary, #ffffff);
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font: inherit;
+}
+
 .container {
     max-width: 1200px;
     margin: 0 auto;

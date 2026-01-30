@@ -178,6 +178,8 @@ async function updateStockData() {
 
     console.log('Lade Aktien-Daten...');
     
+    let updatedCount = 0;
+
     try {
         for (const ticker of stocks) {
             try {
@@ -212,6 +214,8 @@ async function updateStockData() {
                         if (result.meta.marketCap && statValues.length > 0) {
                             statValues[0].textContent = formatMarketCap(result.meta.marketCap);
                         }
+
+                        updatedCount++;
                     }
                 }
                 
@@ -227,6 +231,8 @@ async function updateStockData() {
     } catch (error) {
         console.error('❌ Fehler beim Laden der Aktien-Daten:', error);
     }
+
+    return updatedCount;
 }
 
 // ==================== INDICES DATEN ====================
@@ -245,6 +251,8 @@ async function updateIndicesData() {
     
     console.log('Lade Indices-Daten...');
     
+    let updatedCount = 0;
+
     try {
         for (const [symbol, name] of Object.entries(indices)) {
             try {
@@ -282,6 +290,8 @@ async function updateIndicesData() {
                             if (high && high > 0) detailValues[0].textContent = formatPrice(high, 2);
                             if (low && low > 0) detailValues[1].textContent = formatPrice(low, 2);
                         }
+
+                        updatedCount++;
                     }
                 } else {
                     console.warn(`⚠️ Keine Daten für ${name}`);
@@ -298,6 +308,8 @@ async function updateIndicesData() {
     } catch (error) {
         console.error('❌ Fehler beim Laden der Indices-Daten:', error);
     }
+
+    return updatedCount;
 }
 
 // ==================== ROHSTOFFE/FUTURES DATEN ====================
@@ -320,6 +332,8 @@ async function updateCommoditiesData() {
     };
 
     console.log('Lade Rohstoff-Daten...');
+
+    let updatedCount = 0;
 
     try {
         for (const [symbol, name] of Object.entries(commodities)) {
@@ -358,6 +372,8 @@ async function updateCommoditiesData() {
                             statValues[0].textContent = `$${formatPrice(high)}`;
                             statValues[1].textContent = `$${formatPrice(low)}`;
                         }
+
+                        updatedCount++;
                     }
                 }
                 
@@ -372,10 +388,12 @@ async function updateCommoditiesData() {
     } catch (error) {
         console.error('❌ Fehler beim Laden der Rohstoff-Daten:', error);
     }
+
+    return updatedCount;
 }
 
 // ==================== INITIALISIERUNG ====================
-function initLiveData() {
+async function initLiveData() {
     const pathname = window.location.pathname;
     const currentPage = pathname.split('/').pop(); // Einfacher und robuster
 
@@ -383,27 +401,59 @@ function initLiveData() {
     console.log('📍 Seite:', currentPage);
     console.log('🌐 Protocol:', window.location.protocol);
 
+    // Während des initialen Loads: Hardcode ausblenden (wenn Seite die Klasse gesetzt hat)
+    const hasLoadingClass = document.body?.classList?.contains('live-loading');
+    if (hasLoadingClass) {
+        document.body.classList.remove('live-ready');
+        document.body.classList.remove('live-failed');
+    }
+
     // Lade Daten basierend auf der aktuellen Seite
     if (currentPage.startsWith('krypto')) {
-        updateCryptoData();
+        await updateCryptoData();
         setInterval(updateCryptoData, 60000);
     } 
     else if (currentPage.startsWith('assets')) {
-        updateStockData();
+        const updated = await updateStockData();
         setInterval(updateStockData, 60000);
+        if (hasLoadingClass) {
+            document.body.classList.toggle('live-ready', updated > 0);
+            document.body.classList.toggle('live-failed', updated === 0);
+            document.body.classList.remove('live-loading');
+        }
     } 
     else if (currentPage.startsWith('indices')) {
-        updateIndicesData();
+        const updated = await updateIndicesData();
         setInterval(updateIndicesData, 60000);
+        if (hasLoadingClass) {
+            document.body.classList.toggle('live-ready', updated > 0);
+            document.body.classList.toggle('live-failed', updated === 0);
+            document.body.classList.remove('live-loading');
+        }
     } 
     else if (currentPage.startsWith('futures')) {
-        updateCommoditiesData();
+        const updated = await updateCommoditiesData();
         setInterval(updateCommoditiesData, 60000);
+        if (hasLoadingClass) {
+            document.body.classList.toggle('live-ready', updated > 0);
+            document.body.classList.toggle('live-failed', updated === 0);
+            document.body.classList.remove('live-loading');
+        }
     }
     else if (currentPage === 'index.html' || currentPage === '') {
         // Auf der Startseite alle Daten laden (wenn dort Previews sind)
         updateCryptoData();
         updateIndicesData();
+    }
+
+    // Safety: falls aus irgendeinem Grund nie ein Update durchkommt, nicht ewig im Loading bleiben
+    if (hasLoadingClass) {
+        window.setTimeout(() => {
+            if (document.body.classList.contains('live-loading')) {
+                document.body.classList.remove('live-loading');
+                document.body.classList.add('live-failed');
+            }
+        }, 6000);
     }
 
     // Zeige Hinweis wenn nicht über Server geladen
