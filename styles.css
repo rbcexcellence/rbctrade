@@ -148,6 +148,16 @@ body.live-loading .crypto-card .crypto-price::after {
     color: var(--primary-color);
 }
 
+.price-status {
+    margin-top: 8px;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.price-status.is-live {
+    color: var(--success-green);
+}
+
 .nav-brand h1 span {
     color: var(--primary-color);
 }

@@ -22,6 +22,10 @@ let currentProxyIndex = 0;
 const PROXY_FETCH_TIMEOUT_MS = 4500;
 const SYMBOL_FETCH_CONCURRENCY = 4;
 
+// Local cache: show last known prices instantly, then refresh to Live.
+const LIVE_CACHE_KEY = 'rbc_live_cache_v1';
+const LIVE_CACHE_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
+
 function buildProxyUrl(proxy, targetUrl) {
     if (proxy.type === 'jina') {
         // r.jina.ai erwartet die Ziel-URL als Path-Suffix (inkl. Protocol)
@@ -183,6 +187,84 @@ function updateBadge(element, change) {
     element.textContent = `${isPositive ? '+' : ''}${change.toFixed(2)}%`;
 }
 
+function loadLiveCache() {
+    try {
+        const raw = localStorage.getItem(LIVE_CACHE_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object') return {};
+
+        const now = Date.now();
+        for (const key of Object.keys(parsed)) {
+            const entry = parsed[key];
+            const tsMs = Number(entry?.tsMs);
+            if (!Number.isFinite(tsMs) || now - tsMs > LIVE_CACHE_MAX_AGE_MS) {
+                delete parsed[key];
+            }
+        }
+
+        return parsed;
+    } catch {
+        return {};
+    }
+}
+
+function saveLiveCache(cache) {
+    try {
+        localStorage.setItem(LIVE_CACHE_KEY, JSON.stringify(cache));
+    } catch {
+        // ignore (quota/privacy mode)
+    }
+}
+
+function setCacheEntry(key, data) {
+    const cache = loadLiveCache();
+    cache[key] = { ...data, tsMs: Date.now() };
+    saveLiveCache(cache);
+}
+
+function getCacheEntry(key) {
+    const cache = loadLiveCache();
+    return cache[key];
+}
+
+function ensureStatusElement(card, anchorSelector) {
+    if (!card) return null;
+    let status = card.querySelector('.price-status');
+    if (status) return status;
+
+    const anchor = anchorSelector ? card.querySelector(anchorSelector) : null;
+    status = document.createElement('div');
+    status.className = 'price-status';
+    status.setAttribute('aria-live', 'polite');
+
+    if (anchor) {
+        anchor.insertAdjacentElement('afterend', status);
+    } else {
+        card.appendChild(status);
+    }
+    return status;
+}
+
+function formatStandTime(tsMs) {
+    if (!Number.isFinite(tsMs)) return 'Stand: —';
+    try {
+        const d = new Date(tsMs);
+        const time = d.toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' });
+        const date = d.toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        return `Stand: ${date} ${time}`;
+    } catch {
+        return 'Stand: —';
+    }
+}
+
+function setStatus(card, text, isLive = false) {
+    const status = ensureStatusElement(card);
+    if (!status) return;
+    status.textContent = text;
+    status.classList.toggle('is-live', Boolean(isLive));
+}
+
 // ==================== PLACEHOLDER / FALLBACK ====================
 const FALLBACK_RESTORE_AFTER_MS = 8000;
 
@@ -199,9 +281,9 @@ function preparePricePlaceholders(selector) {
     });
 }
 
-function markLiveUpdated(el) {
+function markLiveUpdated(el, source = 'live') {
     if (!el) return;
-    el.dataset.liveUpdated = '1';
+    el.dataset.liveUpdated = source;
     el.classList.remove('live-placeholder');
 }
 
@@ -241,6 +323,194 @@ function prepareBadgePlaceholders(selector) {
         el.className = 'badge live-placeholder';
         el.dataset.liveUpdated = '0';
     });
+}
+
+function applyCachedDataForPage(currentPage) {
+    if (currentPage.startsWith('krypto')) {
+        document.querySelectorAll('.crypto-card').forEach(card => {
+            const ticker = card.querySelector('.crypto-ticker')?.textContent?.trim();
+            ensureStatusElement(card, '.crypto-price');
+
+            if (!ticker) {
+                setStatus(card, 'Lädt…', false);
+                return;
+            }
+
+            const cached = getCacheEntry(`cg:${ticker}`);
+            if (!cached) {
+                setStatus(card, 'Lädt…', false);
+                return;
+            }
+
+            const priceEl = card.querySelector('.crypto-price');
+            const badge = card.querySelector('.badge');
+            const statValues = card.querySelectorAll('.stat-value');
+
+            if (priceEl && typeof cached.price === 'number' && Number.isFinite(cached.price)) {
+                priceEl.textContent = `$${formatPrice(cached.price)}`;
+                markLiveUpdated(priceEl, 'cache');
+            }
+            if (badge && typeof cached.change === 'number' && Number.isFinite(cached.change)) {
+                updateBadge(badge, cached.change);
+                markLiveUpdated(badge, 'cache');
+            }
+            if (statValues.length > 0 && typeof cached.marketCap === 'number' && Number.isFinite(cached.marketCap)) {
+                statValues[0].textContent = formatMarketCap(cached.marketCap);
+                markLiveUpdated(statValues[0], 'cache');
+            }
+            if (statValues.length > 1 && typeof cached.volume === 'number' && Number.isFinite(cached.volume)) {
+                statValues[1].textContent = formatVolume(cached.volume);
+                markLiveUpdated(statValues[1], 'cache');
+            }
+
+            setStatus(card, formatStandTime(Number(cached.tsMs)), false);
+        });
+        return;
+    }
+
+    if (currentPage.startsWith('indices')) {
+        document.querySelectorAll('.index-card[data-symbol]').forEach(card => {
+            const symbol = card.getAttribute('data-symbol');
+            ensureStatusElement(card, '.index-value');
+
+            if (!symbol) {
+                setStatus(card, 'Lädt…', false);
+                return;
+            }
+
+            const cached = getCacheEntry(`yahoo:${symbol}`);
+            if (!cached) {
+                setStatus(card, 'Lädt…', false);
+                return;
+            }
+
+            const valueElement = card.querySelector('.index-value');
+            const badge = card.querySelector('.badge');
+            const detailValues = card.querySelectorAll('.detail-value');
+
+            if (valueElement && typeof cached.price === 'number' && Number.isFinite(cached.price)) {
+                valueElement.textContent = formatPrice(cached.price, 2);
+                markLiveUpdated(valueElement, 'cache');
+            }
+            if (badge && typeof cached.change === 'number' && Number.isFinite(cached.change)) {
+                updateBadge(badge, cached.change);
+                markLiveUpdated(badge, 'cache');
+            }
+            if (detailValues.length >= 2) {
+                if (typeof cached.high === 'number' && Number.isFinite(cached.high)) {
+                    detailValues[0].textContent = formatPrice(cached.high, 2);
+                    markLiveUpdated(detailValues[0], 'cache');
+                }
+                if (typeof cached.low === 'number' && Number.isFinite(cached.low)) {
+                    detailValues[1].textContent = formatPrice(cached.low, 2);
+                    markLiveUpdated(detailValues[1], 'cache');
+                }
+            }
+
+            const tsMs = Number.isFinite(Number(cached.marketTimeSec))
+                ? Number(cached.marketTimeSec) * 1000
+                : Number(cached.tsMs);
+            setStatus(card, formatStandTime(tsMs), false);
+        });
+        return;
+    }
+
+    if (currentPage.startsWith('assets')) {
+        document.querySelectorAll('.futures-card[data-symbol]').forEach(card => {
+            const symbol = card.getAttribute('data-symbol');
+            ensureStatusElement(card, '.futures-price');
+
+            if (!symbol) {
+                setStatus(card, 'Lädt…', false);
+                return;
+            }
+
+            const cached = getCacheEntry(`yahoo:${symbol}`);
+            if (!cached) {
+                setStatus(card, 'Lädt…', false);
+                return;
+            }
+
+            const priceElement = card.querySelector('.futures-price');
+            const badge = card.querySelector('.badge');
+            const statValues = card.querySelectorAll('.stat-value');
+
+            if (priceElement && typeof cached.price === 'number' && Number.isFinite(cached.price)) {
+                priceElement.textContent = `$${formatPrice(cached.price)}`;
+                markLiveUpdated(priceElement, 'cache');
+            }
+            if (badge && typeof cached.change === 'number' && Number.isFinite(cached.change)) {
+                updateBadge(badge, cached.change);
+                markLiveUpdated(badge, 'cache');
+            }
+
+            // assets.html: Marktkappe / KGV / 52W Hoch
+            if (statValues.length > 0 && typeof cached.marketCap === 'number' && Number.isFinite(cached.marketCap)) {
+                statValues[0].textContent = formatMarketCap(cached.marketCap);
+                markLiveUpdated(statValues[0], 'cache');
+            }
+            if (statValues.length > 1 && typeof cached.pe === 'number' && Number.isFinite(cached.pe)) {
+                statValues[1].textContent = cached.pe.toFixed(1);
+                markLiveUpdated(statValues[1], 'cache');
+            }
+            if (statValues.length > 2 && typeof cached.fiftyTwoWeekHigh === 'number' && Number.isFinite(cached.fiftyTwoWeekHigh)) {
+                statValues[2].textContent = `$${formatPrice(cached.fiftyTwoWeekHigh)}`;
+                markLiveUpdated(statValues[2], 'cache');
+            }
+
+            const tsMs = Number.isFinite(Number(cached.marketTimeSec))
+                ? Number(cached.marketTimeSec) * 1000
+                : Number(cached.tsMs);
+            setStatus(card, formatStandTime(tsMs), false);
+        });
+        return;
+    }
+
+    if (currentPage.startsWith('futures')) {
+        document.querySelectorAll('.futures-card[data-symbol]').forEach(card => {
+            const symbol = card.getAttribute('data-symbol');
+            ensureStatusElement(card, '.futures-price');
+
+            if (!symbol) {
+                setStatus(card, 'Lädt…', false);
+                return;
+            }
+
+            const cached = getCacheEntry(`yahoo:${symbol}`);
+            if (!cached) {
+                setStatus(card, 'Lädt…', false);
+                return;
+            }
+
+            const priceElement = card.querySelector('.futures-price');
+            const badge = card.querySelector('.badge');
+            const statValues = card.querySelectorAll('.stat-value');
+
+            if (priceElement && typeof cached.price === 'number' && Number.isFinite(cached.price)) {
+                priceElement.textContent = `$${formatPrice(cached.price)}`;
+                markLiveUpdated(priceElement, 'cache');
+            }
+            if (badge && typeof cached.change === 'number' && Number.isFinite(cached.change)) {
+                updateBadge(badge, cached.change);
+                markLiveUpdated(badge, 'cache');
+            }
+            if (statValues.length >= 2) {
+                if (typeof cached.high === 'number' && Number.isFinite(cached.high)) {
+                    statValues[0].textContent = `$${formatPrice(cached.high)}`;
+                    markLiveUpdated(statValues[0], 'cache');
+                }
+                if (typeof cached.low === 'number' && Number.isFinite(cached.low)) {
+                    statValues[1].textContent = `$${formatPrice(cached.low)}`;
+                    markLiveUpdated(statValues[1], 'cache');
+                }
+            }
+
+            const tsMs = Number.isFinite(Number(cached.marketTimeSec))
+                ? Number(cached.marketTimeSec) * 1000
+                : Number(cached.tsMs);
+            setStatus(card, formatStandTime(tsMs), false);
+        });
+    }
 }
 
 // ==================== KRYPTO DATEN (CoinGecko API) ====================
@@ -297,7 +567,7 @@ async function updateCryptoData() {
                 if (priceElement && crypto.usd) {
                     const newPrice = `$${formatPrice(crypto.usd)}`;
                     priceElement.textContent = newPrice;
-                    markLiveUpdated(priceElement);
+                    markLiveUpdated(priceElement, 'live');
                     console.log(`${ticker} Preis aktualisiert: ${newPrice}`);
                     updatedCount++;
                 }
@@ -306,21 +576,30 @@ async function updateCryptoData() {
                 const badge = card.querySelector('.badge');
                 if (badge && crypto.usd_24h_change !== undefined) {
                     updateBadge(badge, crypto.usd_24h_change);
-                    markLiveUpdated(badge);
+                    markLiveUpdated(badge, 'live');
                 }
                 
                 // Update Marktkappe
                 const statValues = card.querySelectorAll('.stat-value');
                 if (statValues.length > 0 && crypto.usd_market_cap) {
                     statValues[0].textContent = formatMarketCap(crypto.usd_market_cap);
-                    markLiveUpdated(statValues[0]);
+                    markLiveUpdated(statValues[0], 'live');
                 }
                 
                 // Update 24h Volumen
                 if (statValues.length > 1 && crypto.usd_24h_vol) {
                     statValues[1].textContent = formatVolume(crypto.usd_24h_vol);
-                    markLiveUpdated(statValues[1]);
+                    markLiveUpdated(statValues[1], 'live');
                 }
+
+                ensureStatusElement(card, '.crypto-price');
+                setStatus(card, 'Live', true);
+                setCacheEntry(`cg:${ticker}`, {
+                    price: Number(crypto.usd),
+                    change: Number(crypto.usd_24h_change),
+                    marketCap: Number(crypto.usd_market_cap),
+                    volume: Number(crypto.usd_24h_vol)
+                });
             }
         });
         
@@ -353,31 +632,68 @@ async function updateStockData() {
 
                 if (!result?.meta) return 0;
 
-                const currentPrice = result.meta.regularMarketPrice;
+                const quote = result.indicators?.quote?.[0];
+                const seriesClose = lastFinite(quote?.close);
+                const seriesHigh = lastFinite(quote?.high);
+                const seriesLow = lastFinite(quote?.low);
+
+                const currentPrice = result.meta.regularMarketPrice ?? seriesClose;
                 const previousClose = result.meta.chartPreviousClose || result.meta.previousClose;
                 const change = previousClose ? ((currentPrice - previousClose) / previousClose) * 100 : 0;
+                const high = result.meta.regularMarketDayHigh ?? seriesHigh;
+                const low = result.meta.regularMarketDayLow ?? seriesLow;
+                const marketTimeSec = result.meta.regularMarketTime;
+                const marketState = result.meta.regularMarketState;
+                const marketCap = result.meta.marketCap;
+                const trailingPE = result.meta.trailingPE;
+                const fiftyTwoWeekHigh = result.meta.fiftyTwoWeekHigh;
 
                 // Finde die entsprechende Card via data-symbol
                 const card = document.querySelector(`.futures-card[data-symbol="${ticker}"]`);
                 if (!card) return 0;
 
                 const priceElement = card.querySelector('.futures-price');
-                if (priceElement && currentPrice) {
+                if (priceElement && typeof currentPrice === 'number' && Number.isFinite(currentPrice)) {
                     priceElement.textContent = `$${formatPrice(currentPrice)}`;
-                    markLiveUpdated(priceElement);
+                    markLiveUpdated(priceElement, 'live');
                 }
 
                 const badge = card.querySelector('.badge');
                 if (badge && previousClose) {
                     updateBadge(badge, change);
-                    markLiveUpdated(badge);
+                    markLiveUpdated(badge, 'live');
                 }
 
+                // assets.html: Marktkappe / KGV / 52W Hoch
                 const statValues = card.querySelectorAll('.stat-value');
-                if (result.meta.marketCap && statValues.length > 0) {
-                    statValues[0].textContent = formatMarketCap(result.meta.marketCap);
-                    markLiveUpdated(statValues[0]);
+                if (statValues.length > 0 && typeof marketCap === 'number' && Number.isFinite(marketCap)) {
+                    statValues[0].textContent = formatMarketCap(marketCap);
+                    markLiveUpdated(statValues[0], 'live');
                 }
+                if (statValues.length > 1 && typeof trailingPE === 'number' && Number.isFinite(trailingPE)) {
+                    statValues[1].textContent = trailingPE.toFixed(1);
+                    markLiveUpdated(statValues[1], 'live');
+                }
+                if (statValues.length > 2 && typeof fiftyTwoWeekHigh === 'number' && Number.isFinite(fiftyTwoWeekHigh)) {
+                    statValues[2].textContent = `$${formatPrice(fiftyTwoWeekHigh)}`;
+                    markLiveUpdated(statValues[2], 'live');
+                }
+
+                ensureStatusElement(card, '.futures-price');
+                const tsMs = Number.isFinite(marketTimeSec) ? marketTimeSec * 1000 : Date.now();
+                const isLive = marketState === 'REGULAR' || (Date.now() - tsMs) < 1000 * 60 * 3;
+                setStatus(card, isLive ? 'Live' : formatStandTime(tsMs), isLive);
+                setCacheEntry(`yahoo:${ticker}`, {
+                    price: Number(currentPrice),
+                    change: Number(change),
+                    high: Number(high),
+                    low: Number(low),
+                    marketTimeSec: Number(marketTimeSec),
+                    marketState: String(marketState || ''),
+                    marketCap: typeof marketCap === 'number' ? Number(marketCap) : undefined,
+                    pe: typeof trailingPE === 'number' ? Number(trailingPE) : undefined,
+                    fiftyTwoWeekHigh: typeof fiftyTwoWeekHigh === 'number' ? Number(fiftyTwoWeekHigh) : undefined
+                });
 
                 return 1;
             } catch (error) {
@@ -432,6 +748,8 @@ async function updateIndicesData() {
                 const change = previousClose ? ((currentPrice - previousClose) / previousClose) * 100 : 0;
                 const high = result.meta.regularMarketDayHigh ?? seriesHigh;
                 const low = result.meta.regularMarketDayLow ?? seriesLow;
+                const marketTimeSec = result.meta.regularMarketTime;
+                const marketState = result.meta.regularMarketState;
 
                 const card = document.querySelector(`.index-card[data-symbol="${symbol}"]`);
                 if (!card) return 0;
@@ -439,26 +757,39 @@ async function updateIndicesData() {
                 const valueElement = card.querySelector('.index-value');
                 if (valueElement && typeof currentPrice === 'number' && Number.isFinite(currentPrice)) {
                     valueElement.textContent = formatPrice(currentPrice, 2);
-                    markLiveUpdated(valueElement);
+                    markLiveUpdated(valueElement, 'live');
                 }
 
                 const badge = card.querySelector('.badge');
                 if (badge && previousClose) {
                     updateBadge(badge, change);
-                    markLiveUpdated(badge);
+                    markLiveUpdated(badge, 'live');
                 }
 
                 const detailValues = card.querySelectorAll('.detail-value');
                 if (detailValues.length >= 2) {
                     if (typeof high === 'number' && Number.isFinite(high) && high > 0) {
                         detailValues[0].textContent = formatPrice(high, 2);
-                        markLiveUpdated(detailValues[0]);
+                        markLiveUpdated(detailValues[0], 'live');
                     }
                     if (typeof low === 'number' && Number.isFinite(low) && low > 0) {
                         detailValues[1].textContent = formatPrice(low, 2);
-                        markLiveUpdated(detailValues[1]);
+                        markLiveUpdated(detailValues[1], 'live');
                     }
                 }
+
+                ensureStatusElement(card, '.index-value');
+                const tsMs = Number.isFinite(marketTimeSec) ? marketTimeSec * 1000 : Date.now();
+                const isLive = marketState === 'REGULAR' || (Date.now() - tsMs) < 1000 * 60 * 3;
+                setStatus(card, isLive ? 'Live' : formatStandTime(tsMs), isLive);
+                setCacheEntry(`yahoo:${symbol}`, {
+                    price: Number(currentPrice),
+                    change: Number(change),
+                    high: Number(high),
+                    low: Number(low),
+                    marketTimeSec: Number(marketTimeSec),
+                    marketState: String(marketState || '')
+                });
 
                 return 1;
             } catch (error) {
@@ -518,6 +849,8 @@ async function updateCommoditiesData() {
                 const change = previousClose ? ((currentPrice - previousClose) / previousClose) * 100 : 0;
                 const high = result.meta.regularMarketDayHigh ?? seriesHigh;
                 const low = result.meta.regularMarketDayLow ?? seriesLow;
+                const marketTimeSec = result.meta.regularMarketTime;
+                const marketState = result.meta.regularMarketState;
 
                 const card = document.querySelector(`.futures-card[data-symbol="${symbol}"]`);
                 if (!card) return 0;
@@ -525,26 +858,39 @@ async function updateCommoditiesData() {
                 const priceElement = card.querySelector('.futures-price');
                 if (priceElement && typeof currentPrice === 'number' && Number.isFinite(currentPrice)) {
                     priceElement.textContent = `$${formatPrice(currentPrice)}`;
-                    markLiveUpdated(priceElement);
+                    markLiveUpdated(priceElement, 'live');
                 }
 
                 const badge = card.querySelector('.badge');
                 if (badge && previousClose) {
                     updateBadge(badge, change);
-                    markLiveUpdated(badge);
+                    markLiveUpdated(badge, 'live');
                 }
 
                 const statValues = card.querySelectorAll('.stat-value');
                 if (statValues.length >= 2) {
                     if (typeof high === 'number' && Number.isFinite(high)) {
                         statValues[0].textContent = `$${formatPrice(high)}`;
-                        markLiveUpdated(statValues[0]);
+                        markLiveUpdated(statValues[0], 'live');
                     }
                     if (typeof low === 'number' && Number.isFinite(low)) {
                         statValues[1].textContent = `$${formatPrice(low)}`;
-                        markLiveUpdated(statValues[1]);
+                        markLiveUpdated(statValues[1], 'live');
                     }
                 }
+
+                ensureStatusElement(card, '.futures-price');
+                const tsMs = Number.isFinite(marketTimeSec) ? marketTimeSec * 1000 : Date.now();
+                const isLive = marketState === 'REGULAR' || (Date.now() - tsMs) < 1000 * 60 * 3;
+                setStatus(card, isLive ? 'Live' : formatStandTime(tsMs), isLive);
+                setCacheEntry(`yahoo:${symbol}`, {
+                    price: Number(currentPrice),
+                    change: Number(change),
+                    high: Number(high),
+                    low: Number(low),
+                    marketTimeSec: Number(marketTimeSec),
+                    marketState: String(marketState || '')
+                });
 
                 return 1;
             } catch (error) {
@@ -598,6 +944,9 @@ async function initLiveData() {
     if (hasLoadingClass) {
         document.body.classList.remove('live-loading');
     }
+
+    // Sofort: zuletzt bekannte Werte (Cache) anzeigen + Stand/Lädt pro Box.
+    applyCachedDataForPage(currentPage);
 
     // Lade Daten basierend auf der aktuellen Seite
     if (currentPage.startsWith('krypto')) {
