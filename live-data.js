@@ -219,7 +219,26 @@ function saveLiveCache(cache) {
 
 function setCacheEntry(key, data) {
     const cache = loadLiveCache();
-    cache[key] = { ...data, tsMs: Date.now() };
+    const prev = (cache[key] && typeof cache[key] === 'object') ? cache[key] : {};
+    const next = { ...prev };
+
+    if (data && typeof data === 'object') {
+        for (const [k, v] of Object.entries(data)) {
+            if (v === undefined) continue;
+            if (typeof v === 'number') {
+                if (Number.isFinite(v)) next[k] = v;
+                continue;
+            }
+            if (typeof v === 'string') {
+                if (v.trim() !== '') next[k] = v;
+                continue;
+            }
+            next[k] = v;
+        }
+    }
+
+    next.tsMs = Date.now();
+    cache[key] = next;
     saveLiveCache(cache);
 }
 
@@ -338,7 +357,15 @@ function applyCachedDataForPage(currentPage) {
 
             const cached = getCacheEntry(`cg:${ticker}`);
             if (!cached) {
-                setStatus(card, 'Lädt…', false);
+                // Kein Cache: zeige den vorhandenen (hardcoded) Wert als "Stand: —" statt lange "Lädt…".
+                const priceEl = card.querySelector('.crypto-price');
+                if (priceEl?.dataset?.fallbackText) {
+                    priceEl.textContent = priceEl.dataset.fallbackText;
+                    markLiveUpdated(priceEl, 'seed');
+                    setStatus(card, 'Stand: —', false);
+                } else {
+                    setStatus(card, 'Lädt…', false);
+                }
                 return;
             }
 
@@ -380,7 +407,14 @@ function applyCachedDataForPage(currentPage) {
 
             const cached = getCacheEntry(`yahoo:${symbol}`);
             if (!cached) {
-                setStatus(card, 'Lädt…', false);
+                const valueElement = card.querySelector('.index-value');
+                if (valueElement?.dataset?.fallbackText) {
+                    valueElement.textContent = valueElement.dataset.fallbackText;
+                    markLiveUpdated(valueElement, 'seed');
+                    setStatus(card, 'Stand: —', false);
+                } else {
+                    setStatus(card, 'Lädt…', false);
+                }
                 return;
             }
 
@@ -427,7 +461,14 @@ function applyCachedDataForPage(currentPage) {
 
             const cached = getCacheEntry(`yahoo:${symbol}`);
             if (!cached) {
-                setStatus(card, 'Lädt…', false);
+                const priceElement = card.querySelector('.futures-price');
+                if (priceElement?.dataset?.fallbackText) {
+                    priceElement.textContent = priceElement.dataset.fallbackText;
+                    markLiveUpdated(priceElement, 'seed');
+                    setStatus(card, 'Stand: —', false);
+                } else {
+                    setStatus(card, 'Lädt…', false);
+                }
                 return;
             }
 
@@ -478,7 +519,14 @@ function applyCachedDataForPage(currentPage) {
 
             const cached = getCacheEntry(`yahoo:${symbol}`);
             if (!cached) {
-                setStatus(card, 'Lädt…', false);
+                const priceElement = card.querySelector('.futures-price');
+                if (priceElement?.dataset?.fallbackText) {
+                    priceElement.textContent = priceElement.dataset.fallbackText;
+                    markLiveUpdated(priceElement, 'seed');
+                    setStatus(card, 'Stand: —', false);
+                } else {
+                    setStatus(card, 'Lädt…', false);
+                }
                 return;
             }
 
@@ -638,6 +686,8 @@ async function updateStockData() {
                 const seriesLow = lastFinite(quote?.low);
 
                 const currentPrice = result.meta.regularMarketPrice ?? seriesClose;
+                if (!(typeof currentPrice === 'number' && Number.isFinite(currentPrice) && currentPrice > 0)) return 0;
+
                 const previousClose = result.meta.chartPreviousClose || result.meta.previousClose;
                 const change = previousClose ? ((currentPrice - previousClose) / previousClose) * 100 : 0;
                 const high = result.meta.regularMarketDayHigh ?? seriesHigh;
@@ -744,6 +794,8 @@ async function updateIndicesData() {
                 const seriesLow = lastFinite(quote?.low);
 
                 const currentPrice = result.meta.regularMarketPrice ?? seriesClose;
+                if (!(typeof currentPrice === 'number' && Number.isFinite(currentPrice) && currentPrice > 0)) return 0;
+
                 const previousClose = result.meta.chartPreviousClose || result.meta.previousClose;
                 const change = previousClose ? ((currentPrice - previousClose) / previousClose) * 100 : 0;
                 const high = result.meta.regularMarketDayHigh ?? seriesHigh;
@@ -845,6 +897,8 @@ async function updateCommoditiesData() {
                 const seriesLow = lastFinite(quote?.low);
 
                 const currentPrice = result.meta.regularMarketPrice ?? seriesClose;
+                if (!(typeof currentPrice === 'number' && Number.isFinite(currentPrice) && currentPrice > 0)) return 0;
+
                 const previousClose = result.meta.chartPreviousClose || result.meta.previousClose;
                 const change = previousClose ? ((currentPrice - previousClose) / previousClose) * 100 : 0;
                 const high = result.meta.regularMarketDayHigh ?? seriesHigh;
