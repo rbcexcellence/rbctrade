@@ -166,6 +166,15 @@ function formatVolume(volume) {
     return `$${volume.toFixed(0)}`;
 }
 
+function lastFinite(values) {
+    if (!Array.isArray(values) || values.length === 0) return undefined;
+    for (let i = values.length - 1; i >= 0; i--) {
+        const v = values[i];
+        if (typeof v === 'number' && Number.isFinite(v)) return v;
+    }
+    return undefined;
+}
+
 function updateBadge(element, change) {
     if (!element || isNaN(change)) return;
     
@@ -413,17 +422,22 @@ async function updateIndicesData() {
                 const result = data?.chart?.result?.[0];
                 if (!result?.meta) return 0;
 
-                const currentPrice = result.meta.regularMarketPrice;
+                const quote = result.indicators?.quote?.[0];
+                const seriesClose = lastFinite(quote?.close);
+                const seriesHigh = lastFinite(quote?.high);
+                const seriesLow = lastFinite(quote?.low);
+
+                const currentPrice = result.meta.regularMarketPrice ?? seriesClose;
                 const previousClose = result.meta.chartPreviousClose || result.meta.previousClose;
                 const change = previousClose ? ((currentPrice - previousClose) / previousClose) * 100 : 0;
-                const high = result.meta.regularMarketDayHigh;
-                const low = result.meta.regularMarketDayLow;
+                const high = result.meta.regularMarketDayHigh ?? seriesHigh;
+                const low = result.meta.regularMarketDayLow ?? seriesLow;
 
                 const card = document.querySelector(`.index-card[data-symbol="${symbol}"]`);
                 if (!card) return 0;
 
                 const valueElement = card.querySelector('.index-value');
-                if (valueElement && currentPrice) {
+                if (valueElement && typeof currentPrice === 'number' && Number.isFinite(currentPrice)) {
                     valueElement.textContent = formatPrice(currentPrice, 2);
                     markLiveUpdated(valueElement);
                 }
@@ -436,11 +450,11 @@ async function updateIndicesData() {
 
                 const detailValues = card.querySelectorAll('.detail-value');
                 if (detailValues.length >= 2) {
-                    if (high && high > 0) {
+                    if (typeof high === 'number' && Number.isFinite(high) && high > 0) {
                         detailValues[0].textContent = formatPrice(high, 2);
                         markLiveUpdated(detailValues[0]);
                     }
-                    if (low && low > 0) {
+                    if (typeof low === 'number' && Number.isFinite(low) && low > 0) {
                         detailValues[1].textContent = formatPrice(low, 2);
                         markLiveUpdated(detailValues[1]);
                     }
@@ -494,17 +508,22 @@ async function updateCommoditiesData() {
                 const result = data?.chart?.result?.[0];
                 if (!result?.meta) return 0;
 
-                const currentPrice = result.meta.regularMarketPrice;
+                const quote = result.indicators?.quote?.[0];
+                const seriesClose = lastFinite(quote?.close);
+                const seriesHigh = lastFinite(quote?.high);
+                const seriesLow = lastFinite(quote?.low);
+
+                const currentPrice = result.meta.regularMarketPrice ?? seriesClose;
                 const previousClose = result.meta.chartPreviousClose || result.meta.previousClose;
                 const change = previousClose ? ((currentPrice - previousClose) / previousClose) * 100 : 0;
-                const high = result.meta.regularMarketDayHigh;
-                const low = result.meta.regularMarketDayLow;
+                const high = result.meta.regularMarketDayHigh ?? seriesHigh;
+                const low = result.meta.regularMarketDayLow ?? seriesLow;
 
                 const card = document.querySelector(`.futures-card[data-symbol="${symbol}"]`);
                 if (!card) return 0;
 
                 const priceElement = card.querySelector('.futures-price');
-                if (priceElement && currentPrice) {
+                if (priceElement && typeof currentPrice === 'number' && Number.isFinite(currentPrice)) {
                     priceElement.textContent = `$${formatPrice(currentPrice)}`;
                     markLiveUpdated(priceElement);
                 }
@@ -517,11 +536,11 @@ async function updateCommoditiesData() {
 
                 const statValues = card.querySelectorAll('.stat-value');
                 if (statValues.length >= 2) {
-                    if (high) {
+                    if (typeof high === 'number' && Number.isFinite(high)) {
                         statValues[0].textContent = `$${formatPrice(high)}`;
                         markLiveUpdated(statValues[0]);
                     }
-                    if (low) {
+                    if (typeof low === 'number' && Number.isFinite(low)) {
                         statValues[1].textContent = `$${formatPrice(low)}`;
                         markLiveUpdated(statValues[1]);
                     }
@@ -614,22 +633,8 @@ async function initLiveData() {
         // Seiten ohne Live-Daten: nichts zu tun.
     }
 
-    // Optional: Nach Timeout Fallback-Werte wieder anzeigen, für Items die nie Live-Daten bekommen.
-    window.setTimeout(() => {
-        if (currentPage.startsWith('krypto')) {
-            restoreFallbacksIfStillMissing('.crypto-card .crypto-price');
-            restoreFallbacksIfStillMissing('.crypto-card .badge');
-            restoreFallbacksIfStillMissing('.crypto-card .stat-value');
-        } else if (currentPage.startsWith('indices')) {
-            restoreFallbacksIfStillMissing('.index-card[data-symbol] .index-value');
-            restoreFallbacksIfStillMissing('.index-card[data-symbol] .badge');
-            restoreFallbacksIfStillMissing('.index-card[data-symbol] .detail-value');
-        } else if (currentPage.startsWith('assets') || currentPage.startsWith('futures')) {
-            restoreFallbacksIfStillMissing('.futures-card[data-symbol] .futures-price');
-            restoreFallbacksIfStillMissing('.futures-card[data-symbol] .badge');
-            restoreFallbacksIfStillMissing('.futures-card[data-symbol] .stat-value');
-        }
-    }, FALLBACK_RESTORE_AFTER_MS);
+    // Hinweis: Wir stellen keine Hardcode-Fallbacks wieder her.
+    // Wenn Live-Daten nicht verfügbar sind, bleiben Werte neutral als "—".
 
     // Zeige Hinweis wenn nicht über Server geladen
     if (window.location.protocol === 'file:') {
