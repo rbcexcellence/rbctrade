@@ -357,7 +357,7 @@ function applyCachedDataForPage(currentPage) {
 
             const cached = getCacheEntry(`cg:${ticker}`);
             if (!cached) {
-                setStatus(card, '—', false);
+                setStatus(card, 'Lädt…', false);
                 return;
             }
 
@@ -399,7 +399,7 @@ function applyCachedDataForPage(currentPage) {
 
             const cached = getCacheEntry(`yahoo:${symbol}`);
             if (!cached) {
-                setStatus(card, '—', false);
+                setStatus(card, 'Lädt…', false);
                 return;
             }
 
@@ -446,7 +446,7 @@ function applyCachedDataForPage(currentPage) {
 
             const cached = getCacheEntry(`yahoo:${symbol}`);
             if (!cached) {
-                setStatus(card, '—', false);
+                setStatus(card, 'Lädt…', false);
                 return;
             }
 
@@ -497,7 +497,7 @@ function applyCachedDataForPage(currentPage) {
 
             const cached = getCacheEntry(`yahoo:${symbol}`);
             if (!cached) {
-                setStatus(card, '—', false);
+                setStatus(card, 'Lädt…', false);
                 return;
             }
 
