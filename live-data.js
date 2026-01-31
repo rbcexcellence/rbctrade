@@ -351,21 +351,13 @@ function applyCachedDataForPage(currentPage) {
             ensureStatusElement(card, '.crypto-price');
 
             if (!ticker) {
-                setStatus(card, 'Lädt…', false);
+                setStatus(card, '—', false);
                 return;
             }
 
             const cached = getCacheEntry(`cg:${ticker}`);
             if (!cached) {
-                // Kein Cache: zeige den vorhandenen (hardcoded) Wert als "Stand: —" statt lange "Lädt…".
-                const priceEl = card.querySelector('.crypto-price');
-                if (priceEl?.dataset?.fallbackText) {
-                    priceEl.textContent = priceEl.dataset.fallbackText;
-                    markLiveUpdated(priceEl, 'seed');
-                    setStatus(card, 'Stand: —', false);
-                } else {
-                    setStatus(card, 'Lädt…', false);
-                }
+                setStatus(card, '—', false);
                 return;
             }
 
@@ -401,20 +393,13 @@ function applyCachedDataForPage(currentPage) {
             ensureStatusElement(card, '.index-value');
 
             if (!symbol) {
-                setStatus(card, 'Lädt…', false);
+                setStatus(card, '—', false);
                 return;
             }
 
             const cached = getCacheEntry(`yahoo:${symbol}`);
             if (!cached) {
-                const valueElement = card.querySelector('.index-value');
-                if (valueElement?.dataset?.fallbackText) {
-                    valueElement.textContent = valueElement.dataset.fallbackText;
-                    markLiveUpdated(valueElement, 'seed');
-                    setStatus(card, 'Stand: —', false);
-                } else {
-                    setStatus(card, 'Lädt…', false);
-                }
+                setStatus(card, '—', false);
                 return;
             }
 
@@ -455,20 +440,13 @@ function applyCachedDataForPage(currentPage) {
             ensureStatusElement(card, '.futures-price');
 
             if (!symbol) {
-                setStatus(card, 'Lädt…', false);
+                setStatus(card, '—', false);
                 return;
             }
 
             const cached = getCacheEntry(`yahoo:${symbol}`);
             if (!cached) {
-                const priceElement = card.querySelector('.futures-price');
-                if (priceElement?.dataset?.fallbackText) {
-                    priceElement.textContent = priceElement.dataset.fallbackText;
-                    markLiveUpdated(priceElement, 'seed');
-                    setStatus(card, 'Stand: —', false);
-                } else {
-                    setStatus(card, 'Lädt…', false);
-                }
+                setStatus(card, '—', false);
                 return;
             }
 
@@ -513,20 +491,13 @@ function applyCachedDataForPage(currentPage) {
             ensureStatusElement(card, '.futures-price');
 
             if (!symbol) {
-                setStatus(card, 'Lädt…', false);
+                setStatus(card, '—', false);
                 return;
             }
 
             const cached = getCacheEntry(`yahoo:${symbol}`);
             if (!cached) {
-                const priceElement = card.querySelector('.futures-price');
-                if (priceElement?.dataset?.fallbackText) {
-                    priceElement.textContent = priceElement.dataset.fallbackText;
-                    markLiveUpdated(priceElement, 'seed');
-                    setStatus(card, 'Stand: —', false);
-                } else {
-                    setStatus(card, 'Lädt…', false);
-                }
+                setStatus(card, '—', false);
                 return;
             }
 
