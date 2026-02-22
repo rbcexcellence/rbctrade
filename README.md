@@ -54,11 +54,22 @@ rbctrade/
 
 ## 🌐 Deployment
 
-Für die Domain **rbc-excellence.com**:
+### GitHub Pages (Custom Domain + HTTPS)
 
-1. Lade alle Dateien auf deinen Webserver hoch
-2. Stelle sicher, dass `index.html` im Root-Verzeichnis liegt
-3. DNS-Einstellungen für rbc-excellence.com konfigurieren
+Diese Website ist für GitHub Pages vorbereitet (Custom Domain über die Datei `CNAME`).
+
+1. Repo öffnen → **Settings** → **Pages**
+2. **Source** auswählen (Branch/Folder, z.B. `main` / `/root`)
+3. Unter **Custom domain**: `rbc-excellence.com` eintragen (passt zur Datei `CNAME`)
+4. DNS korrekt setzen (Apex-Domain):
+    - `A` Records auf GitHub Pages (aktuelle IPs laut GitHub-Doku)
+    - optional `AAAA` Records (IPv6) ebenfalls laut GitHub-Doku
+5. Warten bis GitHub das TLS-Zertifikat ausgestellt hat
+6. Dann im gleichen Screen **Enforce HTTPS** aktivieren
+
+Hinweise:
+- GitHub Pages kann viele Security-Header (HSTS, Permissions-Policy, COOP/COEP usw.) nicht frei konfigurieren. Dafür bräuchtest du z.B. einen Reverse-Proxy wie Cloudflare.
+- Als zusätzlicher Schutz ist in `script.js` bereits ein Redirect auf `https://rbc-excellence.com` implementiert.
 
 ## ✨ Features im Detail
 
