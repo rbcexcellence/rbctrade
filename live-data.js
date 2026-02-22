@@ -27,7 +27,10 @@ const SYMBOL_FETCH_CONCURRENCY = 2;
 // Für Seiten mit vielen Symbolen (Aktien/Rohstoffe) zusätzlich drosseln.
 const STOCK_FETCH_CONCURRENCY = 1;
 const COMMODITY_FETCH_CONCURRENCY = 1;
-const REQUEST_SPACING_MS = 300;
+const REQUEST_SPACING_MS = 800;
+
+let stockUpdateInFlight = false;
+let commoditiesUpdateInFlight = false;
 
 // Proxy backoff: wenn ein Proxy rate-limited ist (HTTP 429), überspringen wir ihn
 // für eine kurze Zeit statt ihn weiter zu spammen.
@@ -682,6 +685,12 @@ async function updateCryptoData() {
 
 // ==================== AKTIEN DATEN (Yahoo Finance mit CORS Proxy) ====================
 async function updateStockData() {
+    if (stockUpdateInFlight) {
+        console.log('⏳ Aktien-Update läuft bereits (skip)');
+        return 0;
+    }
+    stockUpdateInFlight = true;
+
     const stocks = [
         'AAPL', 'MSFT', 'NVDA', 'TSLA', 'META', 'GOOGL',
         'NFLX', 'AMZN', 'NKE', 'KO', 'MCD', 'DIS',
@@ -779,6 +788,8 @@ async function updateStockData() {
         console.log('✅ Aktien-Daten aktualisiert');
     } catch (error) {
         console.error('❌ Fehler beim Laden der Aktien-Daten:', error);
+    } finally {
+        stockUpdateInFlight = false;
     }
 
     return updatedCount;
@@ -890,6 +901,12 @@ async function updateIndicesData() {
 
 // ==================== ROHSTOFFE/FUTURES DATEN ====================
 async function updateCommoditiesData() {
+    if (commoditiesUpdateInFlight) {
+        console.log('⏳ Rohstoff-Update läuft bereits (skip)');
+        return 0;
+    }
+    commoditiesUpdateInFlight = true;
+
     const commodities = {
         'GC=F': 'Gold',
         'SI=F': 'Silber',
@@ -900,6 +917,7 @@ async function updateCommoditiesData() {
         'NG=F': 'Natural Gas',
         'RB=F': 'Gasoline',
         'ZW=F': 'Weizen',
+        'ZC=F': 'Mais',
         'ZS=F': 'Sojabohnen',
         'KC=F': 'Kaffee',
         'SB=F': 'Zucker',
@@ -987,6 +1005,8 @@ async function updateCommoditiesData() {
         console.log('✅ Rohstoff-Daten aktualisiert');
     } catch (error) {
         console.error('❌ Fehler beim Laden der Rohstoff-Daten:', error);
+    } finally {
+        commoditiesUpdateInFlight = false;
     }
 
     return updatedCount;
