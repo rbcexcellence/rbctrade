@@ -7,19 +7,22 @@
 // - parsen auch text/plain Antworten robust
 // - parallelisieren Requests mit Concurrency-Limit
 const CORS_PROXIES = [
+    // r.jina.ai ist kein klassischer CORS-Proxy, liefert aber Inhalte serverseitig (text/plain)
+    // und ist für Yahoo (v8/chart) oft zuverlässiger als öffentliche CORS-Proxies.
+    { name: 'jina', type: 'jina', base: 'https://r.jina.ai/' },
     { name: 'allorigins-raw', type: 'raw', base: 'https://api.allorigins.win/raw?url=' },
     { name: 'allorigins-get', type: 'allorigins-get', base: 'https://api.allorigins.win/get?url=' },
-    // r.jina.ai ist kein klassischer CORS-Proxy, liefert aber Inhalte serverseitig (text/plain)
-    // und ist für JSON-Endpoints wie Yahoo oft zuverlässig.
-    { name: 'jina', type: 'jina', base: 'https://r.jina.ai/' },
     // Fallback (kann limitiert sein)
     { name: 'corsproxy', type: 'raw', base: 'https://corsproxy.io/?' }
 ];
 
 let currentProxyIndex = 0;
 
-const PROXY_FETCH_TIMEOUT_MS = 4500;
-const SYMBOL_FETCH_CONCURRENCY = 4;
+// Öffentliche CORS-Proxies sind häufig langsam oder rate-limited.
+// Ein zu aggressiver Timeout führt dazu, dass fast alle Requests abgebrochen werden.
+const PROXY_FETCH_TIMEOUT_MS = 12000;
+// Weniger Parallelität = weniger 429/Timeouts bei Proxies.
+const SYMBOL_FETCH_CONCURRENCY = 2;
 
 // Local cache: show last known prices instantly, then refresh to Live.
 const LIVE_CACHE_KEY = 'rbc_live_cache_v1';
@@ -75,7 +78,21 @@ async function fetchWithTimeout(url, timeoutMs) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     try {
-        return await fetch(url, { signal: controller.signal });
+        return await fetch(url, {
+            signal: controller.signal,
+            cache: 'no-store',
+            credentials: 'omit',
+            redirect: 'follow',
+            headers: {
+                'accept': 'application/json,text/plain,*/*'
+            }
+        });
+    } catch (error) {
+        // Firefox meldet bei Abort oft: "The operation was aborted." (AbortError)
+        if (error?.name === 'AbortError') {
+            throw new Error(`Timeout nach ${timeoutMs}ms`);
+        }
+        throw error;
     } finally {
         clearTimeout(timeoutId);
     }
@@ -103,7 +120,9 @@ async function fetchJsonWithCorsFallback(targetUrl) {
             return data;
         } catch (error) {
             lastError = error;
-            console.warn(`⚠️ Proxy fehlgeschlagen (${proxy.name}):`, error?.message || error);
+            const msg = error?.message || String(error);
+            // Bei Timeouts direkt weiter fallbacken (ohne scary Stacktraces).
+            console.warn(`⚠️ Proxy fehlgeschlagen (${proxy.name}): ${msg}`);
         }
     }
 
@@ -727,7 +746,7 @@ async function updateStockData() {
 async function updateIndicesData() {
     const indices = {
         '^GSPC': 'S&P 500',
-        '^IXIC': 'US 100 (Nasdaq)',
+        '^NDX': 'US 100 (Nasdaq)',
         '^DJI': 'Dow Jones',
         '^GDAXI': 'DAX',
         '^FTSE': 'FTSE 100',
@@ -745,6 +764,8 @@ async function updateIndicesData() {
         const entries = Object.entries(indices);
         const results = await mapWithConcurrency(entries, SYMBOL_FETCH_CONCURRENCY, async ([symbol, name]) => {
             try {
+                // NOTE: Yahoo v7 quote ist oft 401/gesperrt über Proxies.
+                // v8 chart funktioniert in der Praxis deutlich zuverlässiger.
                 const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`;
                 const data = await fetchJsonWithCorsFallback(yahooUrl);
                 const result = data?.chart?.result?.[0];
@@ -769,25 +790,25 @@ async function updateIndicesData() {
                 if (!card) return 0;
 
                 const valueElement = card.querySelector('.index-value');
-                if (valueElement && typeof currentPrice === 'number' && Number.isFinite(currentPrice)) {
-                    valueElement.textContent = formatPrice(currentPrice, 2);
+                if (valueElement) {
+                    valueElement.textContent = formatPrice(Number(currentPrice), 2);
                     markLiveUpdated(valueElement, 'live');
                 }
 
                 const badge = card.querySelector('.badge');
                 if (badge && previousClose) {
-                    updateBadge(badge, change);
+                    updateBadge(badge, Number(change));
                     markLiveUpdated(badge, 'live');
                 }
 
                 const detailValues = card.querySelectorAll('.detail-value');
                 if (detailValues.length >= 2) {
                     if (typeof high === 'number' && Number.isFinite(high) && high > 0) {
-                        detailValues[0].textContent = formatPrice(high, 2);
+                        detailValues[0].textContent = formatPrice(Number(high), 2);
                         markLiveUpdated(detailValues[0], 'live');
                     }
                     if (typeof low === 'number' && Number.isFinite(low) && low > 0) {
-                        detailValues[1].textContent = formatPrice(low, 2);
+                        detailValues[1].textContent = formatPrice(Number(low), 2);
                         markLiveUpdated(detailValues[1], 'live');
                     }
                 }
@@ -796,11 +817,12 @@ async function updateIndicesData() {
                 const tsMs = Number.isFinite(marketTimeSec) ? marketTimeSec * 1000 : Date.now();
                 const isLive = marketState === 'REGULAR' || (Date.now() - tsMs) < 1000 * 60 * 3;
                 setStatus(card, isLive ? 'Live' : formatStandTime(tsMs), isLive);
+
                 setCacheEntry(`yahoo:${symbol}`, {
                     price: Number(currentPrice),
                     change: Number(change),
-                    high: Number(high),
-                    low: Number(low),
+                    high: typeof high === 'number' && Number.isFinite(high) ? Number(high) : undefined,
+                    low: typeof low === 'number' && Number.isFinite(low) ? Number(low) : undefined,
                     marketTimeSec: Number(marketTimeSec),
                     marketState: String(marketState || '')
                 });
@@ -813,7 +835,10 @@ async function updateIndicesData() {
         });
 
         updatedCount = results.reduce((sum, v) => sum + (v || 0), 0);
-        console.log('✅ Indices-Daten aktualisiert');
+        console.log(`✅ Indices-Daten aktualisiert (${updatedCount}/${entries.length})`);
+        if (updatedCount === 0) {
+            console.warn('⚠️ Keine Indices aktualisiert (Proxy/Netzwerk/CORS).');
+        }
     } catch (error) {
         console.error('❌ Fehler beim Laden der Indices-Daten:', error);
     }
