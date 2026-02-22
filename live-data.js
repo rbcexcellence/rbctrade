@@ -24,6 +24,32 @@ const PROXY_FETCH_TIMEOUT_MS = 12000;
 // Weniger Parallelität = weniger 429/Timeouts bei Proxies.
 const SYMBOL_FETCH_CONCURRENCY = 2;
 
+// Für Seiten mit vielen Symbolen (Aktien/Rohstoffe) zusätzlich drosseln.
+const STOCK_FETCH_CONCURRENCY = 1;
+const COMMODITY_FETCH_CONCURRENCY = 1;
+const REQUEST_SPACING_MS = 300;
+
+// Proxy backoff: wenn ein Proxy rate-limited ist (HTTP 429), überspringen wir ihn
+// für eine kurze Zeit statt ihn weiter zu spammen.
+const proxyCooldownUntilMs = new Map();
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function setProxyCooldown(proxyName, cooldownMs) {
+    const until = Date.now() + Math.max(0, Number(cooldownMs) || 0);
+    const prev = Number(proxyCooldownUntilMs.get(proxyName) || 0);
+    if (!Number.isFinite(prev) || until > prev) {
+        proxyCooldownUntilMs.set(proxyName, until);
+    }
+}
+
+function isProxyCoolingDown(proxyName) {
+    const until = Number(proxyCooldownUntilMs.get(proxyName) || 0);
+    return Number.isFinite(until) && until > Date.now();
+}
+
 // Local cache: show last known prices instantly, then refresh to Live.
 const LIVE_CACHE_KEY = 'rbc_live_cache_v1';
 const LIVE_CACHE_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
@@ -102,16 +128,30 @@ async function fetchJsonWithCorsFallback(targetUrl) {
     const startIndex = currentProxyIndex;
     const proxiesInOrder = [];
     for (let offset = 0; offset < CORS_PROXIES.length; offset++) {
-        proxiesInOrder.push({ proxy: CORS_PROXIES[(startIndex + offset) % CORS_PROXIES.length], index: (startIndex + offset) % CORS_PROXIES.length });
+        const index = (startIndex + offset) % CORS_PROXIES.length;
+        const proxy = CORS_PROXIES[index];
+        proxiesInOrder.push({ proxy, index });
     }
+
+    // Wenn ein Proxy gerade im Cooldown ist (z.B. HTTP 429), versuchen wir zuerst die anderen.
+    const available = proxiesInOrder.filter(p => !isProxyCoolingDown(p.proxy.name));
+    const attemptList = available.length > 0 ? available : proxiesInOrder;
 
     // Sequential fallback avoids spamming failing proxies (and noisy 403s) in the console.
     let lastError;
-    for (const { proxy, index } of proxiesInOrder) {
+    for (const { proxy, index } of attemptList) {
         try {
             const proxyUrl = buildProxyUrl(proxy, targetUrl);
             const response = await fetchWithTimeout(proxyUrl, PROXY_FETCH_TIMEOUT_MS);
             if (!response.ok) {
+                // Rate limits / temporäre Blocks: kurz in den Cooldown, dann nächster Proxy.
+                if (response.status === 429) {
+                    setProxyCooldown(proxy.name, 90_000);
+                } else if (response.status === 403) {
+                    setProxyCooldown(proxy.name, 30_000);
+                } else if (response.status >= 500) {
+                    setProxyCooldown(proxy.name, 10_000);
+                }
                 throw new Error(`HTTP ${response.status} ${response.statusText}`);
             }
 
@@ -653,8 +693,10 @@ async function updateStockData() {
     let updatedCount = 0;
 
     try {
-        const results = await mapWithConcurrency(stocks, SYMBOL_FETCH_CONCURRENCY, async (ticker) => {
+        const results = await mapWithConcurrency(stocks, STOCK_FETCH_CONCURRENCY, async (ticker, idx) => {
             try {
+            // Kleine Drosselung, um 429 bei Proxies (z.B. jina) zu vermeiden.
+            if (idx > 0) await sleep(REQUEST_SPACING_MS);
                 const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1d`;
                 const data = await fetchJsonWithCorsFallback(yahooUrl);
                 const result = data?.chart?.result?.[0];
@@ -871,8 +913,9 @@ async function updateCommoditiesData() {
 
     try {
         const entries = Object.entries(commodities);
-        const results = await mapWithConcurrency(entries, SYMBOL_FETCH_CONCURRENCY, async ([symbol, name]) => {
+        const results = await mapWithConcurrency(entries, COMMODITY_FETCH_CONCURRENCY, async ([symbol, name], idx) => {
             try {
+            if (idx > 0) await sleep(REQUEST_SPACING_MS);
                 const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`;
                 const data = await fetchJsonWithCorsFallback(yahooUrl);
                 const result = data?.chart?.result?.[0];
