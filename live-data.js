@@ -1041,7 +1041,8 @@ async function initLiveData() {
     } 
     else if (currentPage.startsWith('assets')) {
         const updated = await updateStockData();
-        setInterval(updateStockData, 60000);
+        // Aktien: viele Symbole -> weniger aggressiv updaten, um Proxy-429 zu vermeiden.
+        setInterval(updateStockData, 120000);
         document.body.classList.toggle('live-ready', updated > 0);
         document.body.classList.toggle('live-failed', updated === 0);
     } 
@@ -1053,7 +1054,8 @@ async function initLiveData() {
     } 
     else if (currentPage.startsWith('futures')) {
         const updated = await updateCommoditiesData();
-        setInterval(updateCommoditiesData, 60000);
+        // Rohstoffe: viele Symbole -> weniger aggressiv updaten, um Proxy-429 zu vermeiden.
+        setInterval(updateCommoditiesData, 120000);
         document.body.classList.toggle('live-ready', updated > 0);
         document.body.classList.toggle('live-failed', updated === 0);
     }
