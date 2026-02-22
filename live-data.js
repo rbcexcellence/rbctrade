@@ -8,13 +8,12 @@
 // - parallelisieren Requests mit Concurrency-Limit
 const CORS_PROXIES = [
     { name: 'allorigins-raw', type: 'raw', base: 'https://api.allorigins.win/raw?url=' },
-    // r.jina.ai ist kein klassischer CORS-Proxy, liefert aber Inhalte serverseitig (text/plain)
-    // und ist für JSON-Endpoints wie Yahoo meist zuverlässig.
-    { name: 'jina', type: 'jina', base: 'https://r.jina.ai/' },
     { name: 'allorigins-get', type: 'allorigins-get', base: 'https://api.allorigins.win/get?url=' },
-    // Fallbacks (häufig 403/limitiert, daher weiter hinten)
-    { name: 'corsproxy', type: 'raw', base: 'https://corsproxy.io/?' },
-    { name: 'cors-anywhere', type: 'path', base: 'https://cors-anywhere.herokuapp.com/' }
+    // r.jina.ai ist kein klassischer CORS-Proxy, liefert aber Inhalte serverseitig (text/plain)
+    // und ist für JSON-Endpoints wie Yahoo oft zuverlässig.
+    { name: 'jina', type: 'jina', base: 'https://r.jina.ai/' },
+    // Fallback (kann limitiert sein)
+    { name: 'corsproxy', type: 'raw', base: 'https://corsproxy.io/?' }
 ];
 
 let currentProxyIndex = 0;
@@ -62,11 +61,12 @@ async function readJsonResponse(proxy, response) {
         return extractJsonFromText(wrapper.contents);
     }
 
-    // Best effort: try response.json(); fall back to text parsing.
+    // IMPORTANT: Do not call response.json() and then response.text().
+    // If JSON parsing fails, the body stream is already consumed.
+    const text = await response.text();
     try {
-        return await response.json();
+        return JSON.parse(text);
     } catch {
-        const text = await response.text();
         return extractJsonFromText(text);
     }
 }
@@ -88,34 +88,25 @@ async function fetchJsonWithCorsFallback(targetUrl) {
         proxiesInOrder.push({ proxy: CORS_PROXIES[(startIndex + offset) % CORS_PROXIES.length], index: (startIndex + offset) % CORS_PROXIES.length });
     }
 
-    const attempts = proxiesInOrder.map(({ proxy, index }) => (async () => {
-        const proxyUrl = buildProxyUrl(proxy, targetUrl);
-        const response = await fetchWithTimeout(proxyUrl, PROXY_FETCH_TIMEOUT_MS);
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status} ${response.statusText}`);
-        }
-
-        const data = await readJsonResponse(proxy, response);
-        currentProxyIndex = index;
-        return data;
-    })().catch((error) => {
-        console.warn(`⚠️ Proxy fehlgeschlagen (${proxy.name}):`, error?.message || error);
-        throw error;
-    }));
-
-    if (typeof Promise.any === 'function') {
-        return Promise.any(attempts);
-    }
-
-    // Fallback für ältere Browser: sequential
+    // Sequential fallback avoids spamming failing proxies (and noisy 403s) in the console.
     let lastError;
-    for (const attempt of attempts) {
+    for (const { proxy, index } of proxiesInOrder) {
         try {
-            return await attempt;
+            const proxyUrl = buildProxyUrl(proxy, targetUrl);
+            const response = await fetchWithTimeout(proxyUrl, PROXY_FETCH_TIMEOUT_MS);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status} ${response.statusText}`);
+            }
+
+            const data = await readJsonResponse(proxy, response);
+            currentProxyIndex = index;
+            return data;
         } catch (error) {
             lastError = error;
+            console.warn(`⚠️ Proxy fehlgeschlagen (${proxy.name}):`, error?.message || error);
         }
     }
+
     throw lastError || new Error('Alle CORS-Proxies sind fehlgeschlagen');
 }
 
@@ -645,7 +636,7 @@ async function updateStockData() {
     try {
         const results = await mapWithConcurrency(stocks, SYMBOL_FETCH_CONCURRENCY, async (ticker) => {
             try {
-                const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1d`;
+                const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1d`;
                 const data = await fetchJsonWithCorsFallback(yahooUrl);
                 const result = data?.chart?.result?.[0];
 
@@ -754,7 +745,7 @@ async function updateIndicesData() {
         const entries = Object.entries(indices);
         const results = await mapWithConcurrency(entries, SYMBOL_FETCH_CONCURRENCY, async ([symbol, name]) => {
             try {
-                const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
+                const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`;
                 const data = await fetchJsonWithCorsFallback(yahooUrl);
                 const result = data?.chart?.result?.[0];
                 if (!result?.meta) return 0;
@@ -857,7 +848,7 @@ async function updateCommoditiesData() {
         const entries = Object.entries(commodities);
         const results = await mapWithConcurrency(entries, SYMBOL_FETCH_CONCURRENCY, async ([symbol, name]) => {
             try {
-                const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
+                const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`;
                 const data = await fetchJsonWithCorsFallback(yahooUrl);
                 const result = data?.chart?.result?.[0];
                 if (!result?.meta) return 0;
